@@ -1,18 +1,38 @@
 import { useState } from "react";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
-import { WALLET, USER } from "@/data/mock";
 import { ArrowDownLeft, ArrowUpRight, Sparkles, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth";
+import { getWalletEntries } from "@/lib/api";
 
 type Filter = "todos" | "earned" | "spent";
 
 const Wallet = () => {
   const [filter, setFilter] = useState<Filter>("todos");
-  const list = WALLET.filter((w) => filter === "todos" || w.type === filter || (filter === "earned" && w.type === "bonus"));
+  const { user, profile } = useAuth();
 
-  const earned = WALLET.filter((w) => w.points > 0).reduce((s, w) => s + w.points, 0);
-  const spent = Math.abs(WALLET.filter((w) => w.points < 0).reduce((s, w) => s + w.points, 0));
+  // ── Datos reales desde Supabase ──────────────────────────────────────────
+  const { data: wallet = [], isLoading } = useQuery({
+    queryKey: ["wallet", user?.id],
+    queryFn: () => getWalletEntries(user!.id),
+    enabled: !!user,
+  });
+
+  const list = wallet.filter((w) =>
+    filter === "todos" ||
+    w.type === filter ||
+    (filter === "earned" && w.type === "bonus")
+  );
+
+  const earned = wallet.filter((w) => w.points > 0).reduce((s, w) => s + w.points, 0);
+  const spent = Math.abs(wallet.filter((w) => w.points < 0).reduce((s, w) => s + w.points, 0));
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  };
 
   return (
     <MobileShell>
@@ -23,7 +43,9 @@ const Wallet = () => {
         <div className="relative overflow-hidden rounded-3xl bg-gradient-hero p-6 text-primary-foreground shadow-card">
           <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
           <p className="text-[11px] uppercase tracking-wider opacity-80">Balance total</p>
-          <p className="font-display text-5xl font-extrabold leading-none">{USER.points.toLocaleString()}</p>
+          <p className="font-display text-5xl font-extrabold leading-none">
+            {(profile?.points ?? 0).toLocaleString()}
+          </p>
           <p className="mt-1 text-sm opacity-85">EcoPuntos disponibles</p>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
@@ -52,17 +74,17 @@ const Wallet = () => {
           </span>
           <div className="flex-1">
             <p className="font-display text-base font-extrabold">Canjea en Marketplace</p>
-            <p className="text-xs text-muted-foreground">Más de 20 recompensas eco disponibles</p>
+            <p className="text-xs text-muted-foreground">Recompensas eco disponibles</p>
           </div>
           <TrendingUp className="h-5 w-5 text-primary" />
         </Link>
 
-        {/* Filters */}
+        {/* Filtros */}
         <div className="grid grid-cols-3 rounded-2xl bg-muted p-1">
           {([
-            { k: "todos",  l: "Todos" },
+            { k: "todos", l: "Todos" },
             { k: "earned", l: "Ingresos" },
-            { k: "spent",  l: "Canjes" },
+            { k: "spent", l: "Canjes" },
           ] as { k: Filter; l: string }[]).map((t) => (
             <button
               key={t.k}
@@ -76,19 +98,23 @@ const Wallet = () => {
           ))}
         </div>
 
-        {/* List */}
+        {/* Lista */}
         <div className="space-y-2 pb-4">
-          {list.map((w) => {
+          {isLoading && [1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-2xl bg-muted" />
+          ))}
+
+          {!isLoading && list.map((w) => {
             const pos = w.points > 0;
             return (
               <div key={w.id} className="flex items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-xl">
-                  {w.emoji}
+                  {w.emoji ?? (pos ? "♻️" : "🎁")}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{w.title}</p>
                   <p className="truncate text-[11px] text-muted-foreground">{w.detail}</p>
-                  <p className="text-[10px] text-muted-foreground">{w.date}</p>
+                  <p className="text-[10px] text-muted-foreground">{formatDate(w.created_at)}</p>
                 </div>
                 <div className="text-right">
                   <p className={`font-display text-base font-extrabold ${pos ? "text-primary" : "text-destructive"}`}>
@@ -101,6 +127,15 @@ const Wallet = () => {
               </div>
             );
           })}
+
+          {!isLoading && list.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+              <p className="text-sm text-muted-foreground">Aún no hay movimientos.</p>
+              <Link to="/app/map" className="mt-2 inline-block text-xs font-bold text-primary">
+                Ir a reciclar →
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </MobileShell>

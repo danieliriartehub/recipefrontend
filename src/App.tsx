@@ -3,58 +3,73 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
-import NotFound from "./pages/NotFound.tsx";
-import Welcome from "./pages/Welcome.tsx";
-import Onboarding from "./pages/Onboarding.tsx";
-import Auth from "./pages/Auth.tsx";
-import Dashboard from "./pages/Dashboard.tsx";
-import MapView from "./pages/MapView.tsx";
-import CenterDetail from "./pages/CenterDetail.tsx";
-import QrScreen from "./pages/QrScreen.tsx";
-import Simulator from "./pages/Simulator.tsx";
-import Impact from "./pages/Impact.tsx";
-import Community from "./pages/Community.tsx";
-import MarketplaceDetail from "./pages/MarketplaceDetail.tsx";
-import Coupons from "./pages/Coupons.tsx";
-import Profile from "./pages/Profile.tsx";
-import Notifications from "./pages/Notifications.tsx";
-import ScanAI from "./pages/ScanAI.tsx";
-import Marketplace from "./pages/Marketplace.tsx";
-import Wallet from "./pages/Wallet.tsx";
+import { AuthProvider } from "@/lib/auth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-const queryClient = new QueryClient();
+import Index from "./pages/Index";
+import NotFound from "./pages/NotFound";
+import Welcome from "./pages/Welcome";
+import Onboarding from "./pages/Onboarding";
+import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
+import MapView from "./pages/MapView";
+import CenterDetail from "./pages/CenterDetail";
+import QrScreen from "./pages/QrScreen";
+import Simulator from "./pages/Simulator";
+import Impact from "./pages/Impact";
+import Community from "./pages/Community";
+import MarketplaceDetail from "./pages/MarketplaceDetail";
+import Coupons from "./pages/Coupons";
+import Profile from "./pages/Profile";
+import Notifications from "./pages/Notifications";
+import ScanAI from "./pages/ScanAI";
+import Marketplace from "./pages/Marketplace";
+import Wallet from "./pages/Wallet";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutos de cache
+      retry: 1,
+    },
+  },
+})
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/app" element={<Dashboard />} />
-          <Route path="/app/map" element={<MapView />} />
-          <Route path="/app/center/:id" element={<CenterDetail />} />
-          <Route path="/app/qr" element={<QrScreen />} />
-          <Route path="/app/simulator" element={<Simulator />} />
-          <Route path="/app/impact" element={<Impact />} />
-          <Route path="/app/community" element={<Community />} />
-          <Route path="/app/marketplace/:id" element={<MarketplaceDetail />} />
-          <Route path="/app/coupons" element={<Coupons />} />
-          <Route path="/app/profile" element={<Profile />} />
-          <Route path="/app/notifications" element={<Notifications />} />
-          <Route path="/app/scan" element={<ScanAI />} />
-          <Route path="/app/marketplace" element={<Marketplace />} />
-          <Route path="/app/wallet" element={<Wallet />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Rutas públicas */}
+            <Route path="/" element={<Index />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/auth" element={<Auth />} />
 
-export default App;
+            {/* Rutas protegidas — requieren sesión */}
+            <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/app/map" element={<ProtectedRoute><MapView /></ProtectedRoute>} />
+            <Route path="/app/center/:id" element={<ProtectedRoute><CenterDetail /></ProtectedRoute>} />
+            <Route path="/app/qr" element={<ProtectedRoute><QrScreen /></ProtectedRoute>} />
+            <Route path="/app/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
+            <Route path="/app/impact" element={<ProtectedRoute><Impact /></ProtectedRoute>} />
+            <Route path="/app/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+            <Route path="/app/marketplace/:id" element={<ProtectedRoute><MarketplaceDetail /></ProtectedRoute>} />
+            <Route path="/app/coupons" element={<ProtectedRoute><Coupons /></ProtectedRoute>} />
+            <Route path="/app/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/app/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/app/scan" element={<ProtectedRoute><ScanAI /></ProtectedRoute>} />
+            <Route path="/app/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
+            <Route path="/app/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
+  </QueryClientProvider>
+)
+
+export default App
