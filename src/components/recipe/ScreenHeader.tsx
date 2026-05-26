@@ -5,11 +5,13 @@ interface ScreenHeaderProps {
   title: string;
   subtitle?: string;
   back?: boolean;
+  /** Acción personalizada al pulsar Atrás. Si no se pasa y back=true, usa nav(-1). */
+  onBack?: () => void;
   showBell?: boolean;
   variant?: "light" | "gradient";
 }
 
-export const ScreenHeader = ({ title, subtitle, back, showBell, variant = "light" }: ScreenHeaderProps) => {
+export const ScreenHeader = ({ title, subtitle, back, onBack, showBell, variant = "light" }: ScreenHeaderProps) => {
   const nav = useNavigate();
   const isGradient = variant === "gradient";
   return (
@@ -24,7 +26,7 @@ export const ScreenHeader = ({ title, subtitle, back, showBell, variant = "light
         <div className="flex items-center gap-3">
           {back && (
             <button
-              onClick={() => nav(-1)}
+              onClick={() => onBack ? onBack() : nav(-1)}
               className={`flex h-10 w-10 items-center justify-center rounded-full transition-smooth ${
                 isGradient ? "bg-white/15 hover:bg-white/25" : "bg-muted hover:bg-muted/70"
               }`}

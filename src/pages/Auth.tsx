@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Mail, Lock, User as UserIcon, Loader2, CheckCircle } from "lucide-react";
+import { Mail, Lock, User as UserIcon, Loader2, CheckCircle, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 // ─── Validaciones ─────────────────────────────────────────────────────────────
@@ -158,10 +158,17 @@ const Auth = () => {
       <ScreenHeader
         title={mode === "login" ? "Inicia sesión" : "Crea tu cuenta"}
         subtitle="Únete a la comunidad RECIPE"
-        back
       />
 
       <div className="px-5 pt-2">
+        {/* Botón volver manual — nav(-1) no funciona si no hay historial previo */}
+        <button
+          onClick={() => nav("/", { replace: false })}
+          className="mb-4 flex items-center gap-2 rounded-full bg-muted px-3 py-2 text-sm font-semibold transition-smooth hover:bg-muted/70"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Volver al inicio
+        </button>
         {/* Toggle login / signup */}
         <div className="mb-5 grid grid-cols-2 rounded-2xl bg-muted p-1">
           {(["login", "signup"] as const).map((t) => (
