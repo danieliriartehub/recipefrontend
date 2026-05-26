@@ -96,8 +96,20 @@ const Dashboard = () => {
     : null;
 
   // ── Misiones diarias ──────────────────────────────────────────────────────
-  // getMissionsWithProgress hace un left-join con user_missions
-  // El resultado es: { ...mission, user_missions: [{done, ...}] | [] }
+  // getMissionsWithProgress hace un left-join con user_missions.
+  // Supabase puede devolver el embedded resource como:
+  //   • []          → no hay registro de user_mission (usuario nuevo)
+  //   • null        → ídem, en algunas versiones de PostgREST
+  //   • [{ done }]  → hay un registro
+  //   • { done }    → objeto (no array) si PostgREST aplana el join
+  // En todos los casos: done=true SOLO si existe un registro explícito con done===true.
+  const parseDone = (um: unknown): boolean => {
+    if (!um) return false;
+    if (Array.isArray(um)) return um.length > 0 && um[0]?.done === true;
+    if (typeof um === "object") return (um as Record<string, unknown>).done === true;
+    return false;
+  };
+
   const dailyMissions = useMemo(() => {
     return (missions as any[])
       .filter((m) => m.type === "diaria")
@@ -106,9 +118,7 @@ const Dashboard = () => {
         title: m.title as string,
         emoji: (m.emoji as string | null) ?? "🎯",
         xp:    (m.xp_reward ?? m.xp ?? 0) as number,
-        done:  Array.isArray(m.user_missions)
-               ? m.user_missions[0]?.done === true
-               : false,
+        done:  parseDone(m.user_missions),
       }));
   }, [missions]);
 
@@ -211,30 +221,30 @@ const Dashboard = () => {
         </div>
       </section>
 
-      {/* ── Banner IA (primera notificación o mensaje de bienvenida) ── */}
-      <section className="px-5 pt-4">
-        {loadingNotifs ? (
-          <Skeleton className="h-[60px] rounded-2xl" />
-        ) : (
-          <Link
-            to="/app/notifications"
-            className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 transition-bounce hover:-translate-y-0.5"
-          >
-            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                {topNotif?.type ?? "Consejo"} · IA
-              </p>
-              <p className="truncate text-sm font-bold">
-                {topNotif?.title ?? "¡Empieza a reciclar y gana tus primeros EcoPuntos! 🌱"}
-              </p>
-            </div>
-            <ChevronRight className="h-4 w-4 flex-none text-primary" />
-          </Link>
-        )}
-      </section>
+      {/* ── Banner IA — solo si hay al menos una notificación real en BD ── */}
+      {(loadingNotifs || topNotif) && (
+        <section className="px-5 pt-4">
+          {loadingNotifs ? (
+            <Skeleton className="h-[60px] rounded-2xl" />
+          ) : (
+            <Link
+              to="/app/notifications"
+              className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 transition-bounce hover:-translate-y-0.5"
+            >
+              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                  {topNotif!.type} · IA
+                </p>
+                <p className="truncate text-sm font-bold">{topNotif!.title}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 flex-none text-primary" />
+            </Link>
+          )}
+        </section>
+      )}
 
       {/* ── Quick actions (estático, no requiere datos remotos) ── */}
       <section className="px-5 pt-4">
@@ -473,21 +483,37 @@ const Dashboard = () => {
         </div>
       </section>
 
-      {/* ── Comunidad ── */}
+      {/* ── Comunidad — condicional según si el usuario eligió universidad ── */}
       <section className="px-5 pt-4 pb-2">
-        <Link
-          to="/app/community"
-          className="flex items-center gap-3 rounded-3xl border border-border bg-card p-4 transition-bounce hover:-translate-y-0.5"
-        >
-          <span className="text-3xl">🏆</span>
-          <div className="min-w-0 flex-1">
-            <p className="font-display text-sm font-extrabold">Comunidad RECIPE</p>
-            <p className="text-xs text-muted-foreground">
-              Compite con otras universidades y sube en el ranking
-            </p>
-          </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-        </Link>
+        {profile?.university_id ? (
+          <Link
+            to="/app/community"
+            className="flex items-center gap-3 rounded-3xl border border-border bg-card p-4 transition-bounce hover:-translate-y-0.5"
+          >
+            <span className="text-3xl">🏆</span>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-sm font-extrabold">Comunidad RECIPE</p>
+              <p className="text-xs text-muted-foreground">
+                Compite con otras universidades y sube en el ranking
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </Link>
+        ) : (
+          <Link
+            to="/app/profile"
+            className="flex items-center gap-3 rounded-3xl border border-primary/30 bg-primary/5 p-4 transition-bounce hover:-translate-y-0.5"
+          >
+            <span className="text-2xl">🎓</span>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-sm font-extrabold">Completa tu perfil</p>
+              <p className="text-xs text-muted-foreground">
+                Elige tu universidad para unirte al ranking →
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-primary" />
+          </Link>
+        )}
       </section>
 
     </MobileShell>
