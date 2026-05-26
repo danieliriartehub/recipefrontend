@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Fondo verde redondeado (mismo verde de marca #1f9d63) -->
+  <rect width="32" height="32" rx="8" fill="#1f9d63"/>
+
+  <!-- Símbolo de reciclaje: tres arcos con flechas, rotados 120° entre sí -->
+  <!-- Cada flecha recorre ~90° del círculo de radio 9 centrado en (16,16) -->
+
+  <!-- Flecha 1: de 15° a 105° (horario desde arriba), punta en 120° -->
+  <path d="M18.33,7.31 A9,9 0 0,1 24.69,18.33"
+        fill="none" stroke="white" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- Punta de flecha 1 en (23.8, 20.5), apuntando al suroeste -->
+  <polyline points="26.0,19.2 23.8,20.5 24.8,22.9"
+            fill="none" stroke="white" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Flecha 2: de 135° a 225° (horario), punta en 240° -->
+  <path d="M22.36,22.36 A9,9 0 0,1 9.64,22.36"
+        fill="none" stroke="white" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- Punta de flecha 2 en (8.2, 20.5), apuntando al norte -->
+  <polyline points="10.8,22.9 8.2,20.5 5.6,21.4"
+            fill="none" stroke="white" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Flecha 3: de 255° a 345° (horario), punta en 0° (arriba) -->
+  <path d="M7.31,18.33 A9,9 0 0,1 13.67,7.31"
+        fill="none" stroke="white" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- Punta de flecha 3 en (16, 7), apuntando al sureste -->
+  <polyline points="13.4,5.1 16.0,7.0 18.6,5.1"
+            fill="none" stroke="white" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
