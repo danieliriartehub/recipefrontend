@@ -26,7 +26,8 @@ interface AuthContextType {
   profile: Profile | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>
+  /** needsConfirmation=true cuando Supabase requiere confirmar el correo antes de iniciar sesión */
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null; needsConfirmation: boolean }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -88,9 +89,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .select()
         .single()
 
-      if (!insertErr && newProfile) {
+      if (insertErr) {
+        console.error('[RECIPE] Error al crear perfil (verifica RLS en tabla profiles):', insertErr)
+      } else if (newProfile) {
         setProfile(newProfile as Profile)
       }
+    } else if (error) {
+      console.error('[RECIPE] Error al leer perfil:', error)
     }
   }
 
@@ -120,12 +125,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } },
     })
-    return { error: error?.message ?? null }
+    return {
+      error: error?.message ?? null,
+      // Si no hubo error pero session es null → Supabase requiere confirmación de correo
+      needsConfirmation: !error && !data.session,
+    }
   }
 
   const signOut = async () => {

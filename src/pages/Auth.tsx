@@ -62,15 +62,19 @@ const Auth = () => {
           // El useEffect de arriba se encarga del redirect cuando session cambia
         }
       } else {
-        const { error } = await signUp(email, password, name);
+        const { error, needsConfirmation } = await signUp(email, password, name);
         if (error) {
           setError(traducirError(error));
         } else {
           isNewUserRef.current = true;
-          // Si Supabase requiere confirmación de correo, session seguirá null
-          // → mostramos pantalla "revisa tu correo".
-          // Si email-confirm está desactivado, session ya cambió y el useEffect redirige.
-          if (!session) setEmailSent(true);
+          if (needsConfirmation) {
+            // Supabase requiere confirmar el correo → mostramos pantalla de aviso.
+            // Cuando el usuario confirme, onAuthStateChange disparará y el
+            // useEffect de arriba redirigirá automáticamente a /onboarding.
+            setEmailSent(true);
+          }
+          // Si needsConfirmation=false → Supabase auto-confirmó → onAuthStateChange
+          // ya disparó y el useEffect redirige a /onboarding. No hay que hacer nada más.
         }
       }
     } finally {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
-import { USER, WALLET } from "@/data/mock";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Download, Share2, ShieldCheck, Check, Wallet as WalletIcon } from "lucide-react";
 
@@ -41,8 +41,13 @@ const QrSvg = ({ seed = "RECIPE" }: { seed?: string }) => {
 };
 
 const QrScreen = () => {
+  const { profile } = useAuth();
   const [validated, setValidated] = useState(false);
-  const recent = WALLET.filter((w) => w.type !== "spent").slice(0, 3);
+
+  const fullName  = profile?.full_name    ?? "Usuario";
+  const username  = profile?.username     ?? null;
+  const points    = profile?.points       ?? 0;
+  const qrCode    = profile?.qr_code      ?? `RECIPE-${(profile?.id ?? "NEW").slice(0, 8).toUpperCase()}`;
 
   return (
     <MobileShell>
@@ -53,12 +58,14 @@ const QrScreen = () => {
           <div className="rounded-[24px] bg-card p-6">
             <div className="text-center">
               <p className="text-xs font-semibold uppercase tracking-wider text-primary">RECIPE · QR personal</p>
-              <h2 className="mt-1 font-display text-2xl font-extrabold">{USER.name}</h2>
-              <p className="text-sm text-muted-foreground">{USER.username} · {USER.points} pts</p>
+              <h2 className="mt-1 font-display text-2xl font-extrabold">{fullName}</h2>
+              <p className="text-sm text-muted-foreground">
+                {username ? `${username} · ` : ""}{points} pts
+              </p>
             </div>
 
             <div className="relative mx-auto mt-5 aspect-square w-full max-w-[260px] overflow-hidden rounded-2xl border-4 border-primary/20 p-3 bg-white">
-              <QrSvg seed={USER.qrCode} />
+              <QrSvg seed={qrCode} />
               {validated && (
                 <div className="absolute inset-0 flex items-center justify-center bg-success/95 animate-scale-in">
                   <div className="text-center text-success-foreground">
@@ -78,7 +85,7 @@ const QrScreen = () => {
             </div>
 
             <div className="mt-3 rounded-2xl bg-muted/60 py-2 text-center font-mono text-sm tracking-wider">
-              {USER.qrCode}
+              {qrCode}
             </div>
           </div>
         </div>
@@ -101,28 +108,19 @@ const QrScreen = () => {
           </Button>
         </div>
 
-        {/* Eco wallet preview */}
-        <div className="mt-6 rounded-3xl bg-card p-5 shadow-soft">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <WalletIcon className="h-4 w-4 text-primary" />
-              <h3 className="font-display text-base font-bold">Eco Wallet</h3>
-            </div>
-            <Link to="/app/wallet" className="text-xs font-semibold text-primary">Ver todo →</Link>
+        {/* Acceso directo a Eco Wallet */}
+        <Link
+          to="/app/wallet"
+          className="mt-6 flex items-center gap-3 rounded-3xl bg-card p-4 shadow-soft transition-bounce hover:-translate-y-0.5"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <WalletIcon className="h-5 w-5" />
+          </span>
+          <div className="flex-1">
+            <p className="font-display text-base font-extrabold">Eco Wallet</p>
+            <p className="text-xs text-muted-foreground">Ver historial de puntos</p>
           </div>
-          <div className="space-y-2">
-            {recent.map((w) => (
-              <div key={w.id} className="flex items-center gap-3 rounded-xl bg-muted/40 p-2.5">
-                <span className="text-lg">{w.emoji}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-bold">{w.title}</p>
-                  <p className="truncate text-[10px] text-muted-foreground">{w.date}</p>
-                </div>
-                <span className="text-sm font-extrabold text-primary">+{w.points}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        </Link>
       </div>
     </MobileShell>
   );

@@ -2,12 +2,16 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
-import { MARKETPLACE, USER, type MarketItem } from "@/data/mock";
+import { MARKETPLACE, type MarketItem } from "@/data/mock";
+import { useAuth } from "@/lib/auth";
 import { Search, Sparkles, Wallet } from "lucide-react";
 
 const categories = ["Todos", "Producto", "Cafetería", "Transporte", "Experiencia", "Donación"] as const;
 
 const Marketplace = () => {
+  const { profile } = useAuth();
+  const userPoints = profile?.points ?? 0;
+
   const [cat, setCat] = useState<(typeof categories)[number]>("Todos");
   const [query, setQuery] = useState("");
 
@@ -49,7 +53,7 @@ const Marketplace = () => {
           <div className="relative flex items-center justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-wider opacity-80">Tu wallet ecológica</p>
-              <p className="font-display text-4xl font-extrabold leading-none">{USER.points.toLocaleString()}<span className="ml-1 text-sm font-bold">pts</span></p>
+              <p className="font-display text-4xl font-extrabold leading-none">{userPoints.toLocaleString()}<span className="ml-1 text-sm font-bold">pts</span></p>
             </div>
             <Link to="/app/wallet" className="flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-2 text-xs font-bold backdrop-blur">
               <Wallet className="h-4 w-4" /> Historial

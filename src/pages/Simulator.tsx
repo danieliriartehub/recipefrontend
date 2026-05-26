@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
-import { USER } from "@/data/mock";
+import { useAuth } from "@/lib/auth";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Sparkles, TrendingUp, Droplets, Zap, Wind, Minus, Plus } from "lucide-react";
@@ -21,6 +21,9 @@ const SIM_MATERIALS: Record<SimMaterial, {
 };
 
 const Simulator = () => {
+  const { profile } = useAuth();
+  const currentPoints = profile?.points ?? 0;
+
   const [material, setMaterial] = useState<SimMaterial>("plastico");
   const [kg, setKg] = useState<number>(1);
 
@@ -29,7 +32,7 @@ const Simulator = () => {
   const co2 = +(kg * data.co2PerKg).toFixed(2);
   const water = Math.round(kg * data.waterPerKg);
   const energy = +(kg * data.energyPerKg).toFixed(1);
-  const totalAfter = USER.points + points;
+  const totalAfter = currentPoints + points;
 
   const setKgSafe = (n: number) => setKg(Math.max(0.1, Math.min(20, +n.toFixed(1))));
 

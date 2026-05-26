@@ -1,19 +1,39 @@
 import { useState } from "react";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
-import { IMPACT, USER, MATERIALS, ACTIVITY, WEEKLY_KG, WEEK_LABELS, MONTHLY_KG, MONTH_LABELS, MILESTONES } from "@/data/mock";
+import { useAuth } from "@/lib/auth";
+import { MATERIALS, ACTIVITY, WEEKLY_KG, WEEK_LABELS, MONTHLY_KG, MONTH_LABELS, MILESTONES } from "@/data/mock";
 import { Share2, TreePine, Droplets, Zap, Car, Wind, Trophy, Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Period = "semanal" | "mensual";
 
 const Impact = () => {
+  const { profile } = useAuth();
+
+  // Datos reales del perfil
+  const totalKg   = profile?.total_kg     ?? 0;
+  const co2Saved  = profile?.co2_saved_kg ?? 0;
+  const levelIndex = profile?.level_index ?? 0;
+  const levelNames = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
+  const levelName = levelNames[levelIndex] ?? "Semilla";
+
+  // Equivalencias calculadas desde datos reales
+  const impact = {
+    co2Kg:        co2Saved,
+    treesSaved:   +(co2Saved / 21).toFixed(2),
+    waterLiters:  Math.round(totalKg * 18),
+    energyKwh:    +(totalKg * 1.4).toFixed(1),
+    showerMin:    Math.round(totalKg * 18 / 9),
+    kmCarAvoided: +(co2Saved * 5.7).toFixed(1),
+  };
+
   const [period, setPeriod] = useState<Period>("semanal");
   const series = period === "mensual" ? MONTHLY_KG : WEEKLY_KG;
   const labels = period === "mensual" ? MONTH_LABELS : WEEK_LABELS;
   const maxV = Math.max(...series, 1);
 
-  // breakdown por material a partir del historial
+  // breakdown por material a partir del historial (mock hasta tener recyclings reales)
   const breakdown = (Object.keys(MATERIALS) as Array<keyof typeof MATERIALS>).map((m) => {
     const total = ACTIVITY.filter((a) => a.material === m).reduce((s, a) => s + a.kg, 0);
     return { material: m, kg: +total.toFixed(1) };
@@ -30,24 +50,24 @@ const Impact = () => {
           <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
           <p className="text-xs uppercase tracking-wider opacity-80">CO₂ evitado</p>
           <div className="flex items-end gap-2">
-            <p className="font-display text-[56px] font-extrabold leading-none">{IMPACT.co2Kg}</p>
+            <p className="font-display text-[56px] font-extrabold leading-none">{impact.co2Kg}</p>
             <p className="mb-2 font-display text-xl font-bold opacity-90">kg</p>
           </div>
           <p className="mt-2 text-sm opacity-90">
-            Equivale a <strong>{IMPACT.kmCarAvoided} km</strong> sin manejar un auto 🚗
+            Equivale a <strong>{impact.kmCarAvoided} km</strong> sin manejar un auto 🚗
           </p>
           <div className="mt-4 grid grid-cols-3 gap-2">
             <div className="rounded-2xl bg-white/15 p-3 text-center backdrop-blur">
-              <p className="font-display text-xl font-extrabold">{USER.totalKg}</p>
+              <p className="font-display text-xl font-extrabold">{totalKg}</p>
               <p className="text-[10px] opacity-85">kg reciclados</p>
             </div>
             <div className="rounded-2xl bg-white/15 p-3 text-center backdrop-blur">
-              <p className="font-display text-xl font-extrabold">{IMPACT.treesSaved}</p>
+              <p className="font-display text-xl font-extrabold">{impact.treesSaved}</p>
               <p className="text-[10px] opacity-85">árboles/año</p>
             </div>
             <div className="rounded-2xl bg-white/15 p-3 text-center backdrop-blur">
-              <p className="font-display text-xl font-extrabold">#{USER.levelIndex + 1}</p>
-              <p className="text-[10px] opacity-85">{USER.level}</p>
+              <p className="font-display text-xl font-extrabold">#{levelIndex + 1}</p>
+              <p className="text-[10px] opacity-85">{levelName}</p>
             </div>
           </div>
         </div>
@@ -86,7 +106,7 @@ const Impact = () => {
           </div>
           <p className="mt-3 text-center text-[11px] text-muted-foreground">
             {period === "semanal"
-              ? `Esta semana: ${USER.weeklyDoneKg} / ${USER.weeklyGoalKg} kg`
+              ? `Meta semanal: ${profile?.weekly_goal_kg ?? 5} kg`
               : `Últimos 6 meses · ${series.reduce((s, v) => s + v, 0).toFixed(1)} kg totales`}
           </p>
         </div>
@@ -99,7 +119,7 @@ const Impact = () => {
           </div>
           <div className="space-y-3">
             {MILESTONES.map((m) => {
-              const pct = Math.min(100, Math.round((USER.totalKg / m.target) * 100));
+              const pct = Math.min(100, Math.round((totalKg / m.target) * 100));
               return (
                 <div key={m.id} className={`rounded-2xl p-3 transition-smooth ${m.unlocked ? "bg-success/8" : "bg-muted/40"}`}>
                   <div className="flex items-center gap-3">
@@ -126,11 +146,11 @@ const Impact = () => {
         <div>
           <h3 className="mb-3 font-display text-base font-bold">Equivalencias ecológicas</h3>
           <div className="grid grid-cols-2 gap-3">
-            <EqCard icon={TreePine} label="Árboles salvados" value={`${IMPACT.treesSaved}`} unit="árb/año" tint="bg-primary/10 text-primary" />
-            <EqCard icon={Droplets} label="Agua ahorrada" value={`${IMPACT.waterLiters}`} unit="litros" tint="bg-secondary/10 text-secondary" />
-            <EqCard icon={Zap} label="Energía" value={`${IMPACT.energyKwh}`} unit="kWh" tint="bg-accent/20 text-accent-foreground" />
-            <EqCard icon={Car} label="Auto evitado" value={`${IMPACT.kmCarAvoided}`} unit="km" tint="bg-material-glass/15 text-material-glass" />
-            <EqCard icon={Wind} label="Duchas" value={`${IMPACT.showerMin}`} unit="min" tint="bg-material-plastic/15 text-material-plastic" />
+            <EqCard icon={TreePine} label="Árboles salvados" value={`${impact.treesSaved}`} unit="árb/año" tint="bg-primary/10 text-primary" />
+            <EqCard icon={Droplets} label="Agua ahorrada" value={`${impact.waterLiters}`} unit="litros" tint="bg-secondary/10 text-secondary" />
+            <EqCard icon={Zap} label="Energía" value={`${impact.energyKwh}`} unit="kWh" tint="bg-accent/20 text-accent-foreground" />
+            <EqCard icon={Car} label="Auto evitado" value={`${impact.kmCarAvoided}`} unit="km" tint="bg-material-glass/15 text-material-glass" />
+            <EqCard icon={Wind} label="Duchas" value={`${impact.showerMin}`} unit="min" tint="bg-material-plastic/15 text-material-plastic" />
             <EqCard icon={Trophy} label="Top universidad" value="#2" unit="ranking" tint="bg-material-paper/15 text-material-paper" />
           </div>
         </div>
