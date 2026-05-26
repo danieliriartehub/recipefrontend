@@ -56,7 +56,9 @@ const Profile = () => {
 
   const handleSignOut = async () => {
     await signOut();
-    nav("/", { replace: true });
+    // replace:true reemplaza la entrada en el historial → el botón Atrás del
+    // celular no puede regresar a /app después de cerrar sesión
+    nav("/auth", { replace: true });
   };
 
   // ─── Datos del perfil con defaults para usuario nuevo ─────────────────────

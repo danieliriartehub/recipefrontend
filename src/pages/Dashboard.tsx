@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { MobileShell } from "@/components/recipe/MobileShell";
@@ -45,6 +45,20 @@ function toLocalDate(d: Date): string {
 // ─── Componente principal ─────────────────────────────────────────────────────
 const Dashboard = () => {
   const { profile, user } = useAuth();
+
+  // ── Detección offline ─────────────────────────────────────────────────────
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const on  = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online",  on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online",  on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
 
   // ── Valores derivados del perfil ───────────────────────────────────────────
   const levelIndex  = profile?.level_index    ?? 0;
@@ -154,6 +168,13 @@ const Dashboard = () => {
   return (
     <MobileShell>
 
+      {/* ── Banner offline — visible cuando no hay conexión ── */}
+      {!isOnline && (
+        <div className="sticky top-0 z-50 flex items-center gap-2 bg-yellow-400/95 px-4 py-2.5 text-sm font-semibold text-yellow-900 backdrop-blur">
+          📡 Sin conexión — mostrando datos guardados
+        </div>
+      )}
+
       {/* ── Header ── */}
       <header className="flex items-center justify-between px-5 pt-[max(env(safe-area-inset-top),20px)] pb-2">
         <div>
@@ -221,30 +242,36 @@ const Dashboard = () => {
         </div>
       </section>
 
-      {/* ── Banner IA — solo si hay al menos una notificación real en BD ── */}
-      {(loadingNotifs || topNotif) && (
-        <section className="px-5 pt-4">
-          {loadingNotifs ? (
-            <Skeleton className="h-[60px] rounded-2xl" />
-          ) : (
-            <Link
-              to="/app/notifications"
-              className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 transition-bounce hover:-translate-y-0.5"
-            >
-              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                  {topNotif!.type} · IA
-                </p>
-                <p className="truncate text-sm font-bold">{topNotif!.title}</p>
-              </div>
-              <ChevronRight className="h-4 w-4 flex-none text-primary" />
-            </Link>
-          )}
-        </section>
-      )}
+      {/* ── Banner IA / notificaciones ── */}
+      <section className="px-5 pt-4">
+        {loadingNotifs ? (
+          <Skeleton className="h-[60px] rounded-2xl" />
+        ) : topNotif ? (
+          <Link
+            to="/app/notifications"
+            className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 transition-bounce hover:-translate-y-0.5"
+          >
+            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                {topNotif.type} · IA
+              </p>
+              <p className="truncate text-sm font-bold">{topNotif.title}</p>
+            </div>
+            <ChevronRight className="h-4 w-4 flex-none text-primary" />
+          </Link>
+        ) : (
+          /* Sin notificaciones reales → empty state */
+          <div className="flex flex-col items-center justify-center rounded-2xl bg-muted/40 py-5 text-center">
+            <p className="text-2xl">🌱</p>
+            <p className="mt-2 text-sm font-semibold text-muted-foreground">
+              No hay datos disponibles aún
+            </p>
+          </div>
+        )}
+      </section>
 
       {/* ── Quick actions (estático, no requiere datos remotos) ── */}
       <section className="px-5 pt-4">
@@ -452,6 +479,12 @@ const Dashboard = () => {
           {/* Gráfico: puntos ganados por día (últimos 7 días desde wallet_entries) */}
           {loadingWallet ? (
             <div className="mt-3 h-16 animate-pulse rounded-xl bg-muted" />
+          ) : wallet.length === 0 ? (
+            /* Sin entradas de wallet → empty state */
+            <div className="mt-3 flex flex-col items-center justify-center py-4 text-center">
+              <p className="text-2xl">🌱</p>
+              <p className="mt-1 text-sm text-muted-foreground">No hay datos disponibles aún</p>
+            </div>
           ) : (
             <div className="mt-3 flex h-16 items-end justify-between gap-1.5">
               {weeklyBars.map((bar, i) => {
