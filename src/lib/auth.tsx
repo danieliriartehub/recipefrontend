@@ -41,13 +41,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const fetchProfile = async (userId: string) => {
+  /**
+   * Busca el perfil del usuario. Si no existe (usuario nuevo), lo crea
+   * automáticamente con valores por defecto.
+   */
+  const fetchProfile = async (authUser: User) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('id', authUser.id)
       .single()
-    if (!error && data) setProfile(data as Profile)
+
+    if (!error && data) {
+      setProfile(data as Profile)
+      return
+    }
+
+    // PGRST116 = cero filas devueltas → perfil aún no existe → lo creamos
+    if (error?.code === 'PGRST116' || error?.message?.includes('0 rows')) {
+      const fullName =
+        (authUser.user_metadata?.full_name as string | undefined) ??
+        authUser.email?.split('@')[0] ??
+        'Usuario'
+
+      const initials = fullName
+        .split(' ')
+        .filter(Boolean)
+        .map((s) => s[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase() || 'U'
+
+      const { data: newProfile, error: insertErr } = await supabase
+        .from('profiles')
+        .insert({
+          id: authUser.id,
+          full_name: fullName,
+          avatar_initials: initials,
+          points: 0,
+          total_kg: 0,
+          co2_saved_kg: 0,
+          streak_days: 0,
+          level_index: 0,
+          weekly_goal_kg: 5,
+        })
+        .select()
+        .single()
+
+      if (!insertErr && newProfile) {
+        setProfile(newProfile as Profile)
+      }
+    }
   }
 
   useEffect(() => {
@@ -55,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      if (session?.user) fetchProfile(session.user)
       setLoading(false)
     })
 
@@ -63,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      if (session?.user) fetchProfile(session.user)
       else setProfile(null)
     })
 
@@ -89,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user.id)
+    if (user) await fetchProfile(user)
   }
 
   return (
