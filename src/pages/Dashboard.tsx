@@ -1,16 +1,15 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { useAuth } from "@/lib/auth";
 import {
-  CENTERS,
-  RECOMMENDED_CENTER_ID,
-  MISSIONS,
-  STATUS_META,
-  WEEKLY_KG,
-  WEEK_LABELS,
-  getEcoTitle,
-  SMART_NOTIFICATIONS,
-} from "@/data/mock";
+  getCenters,
+  getWalletEntries,
+  getMissionsWithProgress,
+  getNotifications,
+} from "@/lib/api";
+import { STATUS_META, getEcoTitle } from "@/data/mock";
 import {
   Bell,
   ChevronRight,
@@ -26,40 +25,125 @@ import {
   Calculator,
 } from "lucide-react";
 
-// ─── Niveles y umbrales (deben coincidir con los de la base de datos) ─────────
-const LEVEL_NAMES = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
+// ─── Constantes de niveles (deben coincidir con la BD) ────────────────────────
+const LEVEL_NAMES     = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
 const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 10000];
+// Iniciales de días de la semana (0=Dom … 6=Sáb)
+const DAY_LABELS = ["D", "L", "M", "M", "J", "V", "S"] as const;
 
+// ─── Skeletons ────────────────────────────────────────────────────────────────
+const Skeleton = ({ className = "" }: { className?: string }) => (
+  <div className={`animate-pulse rounded-2xl bg-muted ${className}`} />
+);
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+/** Devuelve el string YYYY-MM-DD para un Date en hora local */
+function toLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 const Dashboard = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
 
-  // ── Datos del usuario: reales si existen, defaults para usuario nuevo ──────
-  const levelIndex  = profile?.level_index  ?? 0;
-  const points      = profile?.points       ?? 0;
-  const streak      = profile?.streak_days  ?? 0;
+  // ── Valores derivados del perfil ───────────────────────────────────────────
+  const levelIndex  = profile?.level_index    ?? 0;
+  const points      = profile?.points         ?? 0;
+  const streak      = profile?.streak_days    ?? 0;
   const weeklyGoal  = profile?.weekly_goal_kg ?? 5;
+  const totalKg     = profile?.total_kg       ?? 0;
   const firstName   = (profile?.full_name ?? "Usuario").split(" ")[0];
 
   const nextLevelAt = LEVEL_THRESHOLDS[levelIndex + 1] ?? 10000;
   const nextLevel   = LEVEL_NAMES[levelIndex + 1] ?? "Leyenda Eco";
+  const progress    = Math.min(100, Math.round((points / nextLevelAt) * 100));
+  const title       = getEcoTitle(points);
 
-  // weeklyDoneKg: viene del perfil cuando esté disponible en la DB,
-  // mientras tanto mostramos 0 para usuarios nuevos reales.
-  const weeklyDone  = 0;
+  // ── Queries a Supabase ────────────────────────────────────────────────────
+  const { data: centers = [], isLoading: loadingCenters } = useQuery({
+    queryKey: ["centers"],
+    queryFn: getCenters,
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const progress = Math.min(100, Math.round((points / nextLevelAt) * 100));
-  const weekly   = Math.min(100, Math.round((weeklyDone / weeklyGoal) * 100));
+  const { data: wallet = [], isLoading: loadingWallet } = useQuery({
+    queryKey: ["wallet", user?.id],
+    queryFn: () => getWalletEntries(user!.id),
+    enabled: !!user,
+  });
 
-  const title        = getEcoTitle(points);
-  const rec          = CENTERS.find((c) => c.id === RECOMMENDED_CENTER_ID)!;
-  const recStatus    = STATUS_META[rec.status];
-  const maxWeek      = Math.max(...WEEKLY_KG, 1);
-  const dailyMissions    = MISSIONS.filter((m) => m.type === "diaria");
-  const completedDaily   = dailyMissions.filter((m) => m.done).length;
-  const topSmart         = SMART_NOTIFICATIONS[0];
+  const { data: missions = [], isLoading: loadingMissions } = useQuery({
+    queryKey: ["missions", user?.id],
+    queryFn: () => getMissionsWithProgress(user!.id),
+    enabled: !!user,
+  });
 
+  const { data: notifications = [], isLoading: loadingNotifs } = useQuery({
+    queryKey: ["notifications", user?.id],
+    queryFn: () => getNotifications(user!.id),
+    enabled: !!user,
+  });
+
+  // ── Centro recomendado ─────────────────────────────────────────────────────
+  // Primero con status "abierto"; si no hay, el primero de la lista
+  const rec = useMemo(() => {
+    const open = (centers as any[]).find((c) => c.status === "abierto");
+    return open ?? (centers as any[])[0] ?? null;
+  }, [centers]);
+
+  const recStatus = rec
+    ? STATUS_META[rec.status as keyof typeof STATUS_META] ?? null
+    : null;
+
+  // ── Misiones diarias ──────────────────────────────────────────────────────
+  // getMissionsWithProgress hace un left-join con user_missions
+  // El resultado es: { ...mission, user_missions: [{done, ...}] | [] }
+  const dailyMissions = useMemo(() => {
+    return (missions as any[])
+      .filter((m) => m.type === "diaria")
+      .map((m) => ({
+        id:    m.id as string,
+        title: m.title as string,
+        emoji: (m.emoji as string | null) ?? "🎯",
+        xp:    (m.xp_reward ?? m.xp ?? 0) as number,
+        done:  Array.isArray(m.user_missions)
+               ? m.user_missions[0]?.done === true
+               : false,
+      }));
+  }, [missions]);
+
+  const completedDaily = dailyMissions.filter((m) => m.done).length;
+
+  // ── Gráfico de actividad semanal ──────────────────────────────────────────
+  // Agrupa los puntos ganados (tipo "earned") de wallet_entries por día,
+  // para los últimos 7 días. Cada barra representa actividad relativa.
+  const weeklyBars = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(now);
+      day.setDate(now.getDate() - (6 - i)); // i=0 → hace 6 días, i=6 → hoy
+      const dayStr  = toLocalDate(day);
+      const label   = DAY_LABELS[day.getDay()];
+      const earned  = (wallet as any[])
+        .filter((e) => e.points > 0 && (e.created_at as string | undefined)?.startsWith(dayStr))
+        .reduce((sum, e) => sum + ((e.points as number) ?? 0), 0);
+      return { label, value: earned, isToday: i === 6 };
+    });
+  }, [wallet]);
+
+  const maxBar = Math.max(...weeklyBars.map((b) => b.value), 1);
+
+  // Meta semanal: kilos reciclados en total (profile) vs. goal
+  const weeklyPct = Math.min(100, Math.round((totalKg / weeklyGoal) * 100));
+
+  // ── Banner IA ─────────────────────────────────────────────────────────────
+  const topNotif = (notifications as any[])[0] ?? null;
+  const hasUnread = (notifications as any[]).some((n) => !n.read);
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <MobileShell>
+
       {/* ── Header ── */}
       <header className="flex items-center justify-between px-5 pt-[max(env(safe-area-inset-top),20px)] pb-2">
         <div>
@@ -80,12 +164,14 @@ const Dashboard = () => {
             className="relative flex h-10 w-10 items-center justify-center rounded-full bg-muted hover:bg-muted/70"
           >
             <Bell className="h-5 w-5" />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent animate-pulse-glow" />
+            {hasUnread && (
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent animate-pulse-glow" />
+            )}
           </Link>
         </div>
       </header>
 
-      {/* ── HERO — saldo + título ecológico ── */}
+      {/* ── HERO — puntos + nivel ── */}
       <section className="px-5 pt-2">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-hero p-5 text-primary-foreground shadow-card">
           <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/15 blur-2xl" />
@@ -102,7 +188,7 @@ const Dashboard = () => {
                 {points.toLocaleString()}
               </p>
               <p className="mt-1 text-xs opacity-85">
-                EcoPuntos · faltan {nextLevelAt - points} para {nextLevel}
+                EcoPuntos · faltan {(nextLevelAt - points).toLocaleString()} para {nextLevel}
               </p>
             </div>
             <div className="flex flex-col items-end gap-2">
@@ -118,33 +204,39 @@ const Dashboard = () => {
 
           <div className="relative mt-4 h-1.5 overflow-hidden rounded-full bg-white/20">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-accent to-white"
+              className="h-full rounded-full bg-gradient-to-r from-accent to-white transition-all duration-700"
               style={{ width: `${progress}%` }}
             />
           </div>
         </div>
       </section>
 
-      {/* ── Banner IA ── */}
+      {/* ── Banner IA (primera notificación o mensaje de bienvenida) ── */}
       <section className="px-5 pt-4">
-        <Link
-          to="/app/notifications"
-          className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 transition-bounce hover:-translate-y-0.5"
-        >
-          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-              {topSmart.aiTag} · IA
-            </p>
-            <p className="truncate text-sm font-bold">{topSmart.title}</p>
-          </div>
-          <ChevronRight className="h-4 w-4 flex-none text-primary" />
-        </Link>
+        {loadingNotifs ? (
+          <Skeleton className="h-[60px] rounded-2xl" />
+        ) : (
+          <Link
+            to="/app/notifications"
+            className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 transition-bounce hover:-translate-y-0.5"
+          >
+            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                {topNotif?.type ?? "Consejo"} · IA
+              </p>
+              <p className="truncate text-sm font-bold">
+                {topNotif?.title ?? "¡Empieza a reciclar y gana tus primeros EcoPuntos! 🌱"}
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 flex-none text-primary" />
+          </Link>
+        )}
       </section>
 
-      {/* ── Quick actions ── */}
+      {/* ── Quick actions (estático, no requiere datos remotos) ── */}
       <section className="px-5 pt-4">
         <div className="grid grid-cols-2 gap-3">
           <Link
@@ -153,9 +245,7 @@ const Dashboard = () => {
           >
             <ScanLine className="h-7 w-7" />
             <p className="mt-3 font-display text-base font-extrabold leading-tight">
-              Escanear
-              <br />
-              residuo
+              Escanear<br />residuo
             </p>
             <p className="text-[10px] opacity-85">IA al instante</p>
             <span className="absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-white/10 blur-xl" />
@@ -169,9 +259,7 @@ const Dashboard = () => {
               <MapPin className="h-5 w-5" />
             </span>
             <p className="mt-3 font-display text-base font-extrabold leading-tight">
-              Centros
-              <br />
-              cercanos
+              Centros<br />cercanos
             </p>
             <p className="text-[10px] text-muted-foreground">Mapa en tiempo real</p>
           </Link>
@@ -184,9 +272,7 @@ const Dashboard = () => {
               <ShoppingBag className="h-5 w-5" />
             </span>
             <p className="mt-3 font-display text-base font-extrabold leading-tight">
-              Eco
-              <br />
-              Marketplace
+              Eco<br />Marketplace
             </p>
             <p className="text-[10px] text-muted-foreground">Canjea recompensas</p>
           </Link>
@@ -199,9 +285,7 @@ const Dashboard = () => {
               <QrCode className="h-5 w-5" />
             </span>
             <p className="mt-3 font-display text-base font-extrabold leading-tight">
-              Mi QR
-              <br />
-              RECIPE
+              Mi QR<br />RECIPE
             </p>
             <p className="text-[10px] text-muted-foreground">Validación rápida</p>
           </Link>
@@ -228,43 +312,59 @@ const Dashboard = () => {
       <section className="px-5 pt-5">
         <div className="mb-2 flex items-center justify-between">
           <h3 className="font-display text-sm font-bold text-muted-foreground">RECOMENDADO POR IA</h3>
-          <Link to="/app/map" className="text-xs font-semibold text-primary">
-            Ver mapa →
-          </Link>
+          <Link to="/app/map" className="text-xs font-semibold text-primary">Ver mapa →</Link>
         </div>
-        <Link
-          to={`/app/center/${rec.id}`}
-          className="block rounded-3xl bg-card p-4 shadow-soft transition-bounce hover:-translate-y-0.5"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h4 className="truncate font-display text-base font-extrabold">{rec.name}</h4>
-                <span
-                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${recStatus.bg} ${recStatus.text}`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${recStatus.dot} animate-pulse`} />
-                  {recStatus.label}
-                </span>
+
+        {loadingCenters ? (
+          <Skeleton className="h-24" />
+        ) : rec && recStatus ? (
+          <Link
+            to={`/app/center/${rec.id}`}
+            className="block rounded-3xl bg-card p-4 shadow-soft transition-bounce hover:-translate-y-0.5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="truncate font-display text-base font-extrabold">{rec.name}</h4>
+                  <span
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${recStatus.bg} ${recStatus.text}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${recStatus.dot} animate-pulse`} />
+                    {recStatus.label}
+                  </span>
+                </div>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {rec.district} · {rec.address}
+                </p>
+                <div className="mt-3 flex items-center gap-4 text-xs">
+                  <span className="flex items-center gap-1 font-semibold">
+                    <MapPin className="h-3.5 w-3.5 text-primary" />
+                    {/* Supabase devuelve snake_case; fallback a camelCase por compatibilidad */}
+                    {rec.distance_km ?? rec.distanceKm ?? "—"} km
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold">
+                    <Navigation className="h-3.5 w-3.5 text-primary" />
+                    {rec.eta_min ?? rec.etaMin ?? "—"} min
+                  </span>
+                  <span className="font-semibold text-success">
+                    ~{rec.wait_min ?? rec.waitMin ?? 0} min espera
+                  </span>
+                </div>
               </div>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {rec.district} · {rec.address}
-              </p>
-              <div className="mt-3 flex items-center gap-4 text-xs">
-                <span className="flex items-center gap-1 font-semibold">
-                  <MapPin className="h-3.5 w-3.5 text-primary" />
-                  {rec.distanceKm} km
-                </span>
-                <span className="flex items-center gap-1 font-semibold">
-                  <Navigation className="h-3.5 w-3.5 text-primary" />
-                  {rec.etaMin} min
-                </span>
-                <span className="font-semibold text-success">~{rec.waitMin} min</span>
-              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </Link>
+        ) : (
+          /* Estado vacío: no hay centros en la BD todavía */
+          <div className="rounded-3xl bg-card p-5 text-center shadow-soft">
+            <p className="text-sm text-muted-foreground">
+              No hay centros disponibles por ahora.
+            </p>
+            <Link to="/app/map" className="mt-1 block text-xs font-bold text-primary">
+              Explorar mapa →
+            </Link>
           </div>
-        </Link>
+        )}
       </section>
 
       {/* ── Misiones del día ── */}
@@ -275,83 +375,101 @@ const Dashboard = () => {
             {completedDaily}/{dailyMissions.length}
           </span>
         </div>
+
         <div className="rounded-3xl bg-card p-4 shadow-soft">
-          <div className="space-y-2.5">
-            {dailyMissions.map((m) => (
-              <div
-                key={m.id}
-                className={`flex items-center gap-3 rounded-2xl p-2.5 transition-smooth ${
-                  m.done ? "bg-success/10" : "bg-muted/40"
-                }`}
-              >
-                <span className="text-xl">{m.emoji}</span>
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={`truncate text-sm font-semibold ${
-                      m.done && "line-through opacity-70"
-                    }`}
-                  >
-                    {m.title}
-                  </p>
-                </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
-                    m.done
-                      ? "bg-success text-success-foreground"
-                      : "bg-primary/15 text-primary"
+          {loadingMissions ? (
+            <div className="space-y-2.5">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-[46px]" />)}
+            </div>
+          ) : dailyMissions.length === 0 ? (
+            /* Usuario nuevo o sin misiones activas */
+            <div className="py-4 text-center">
+              <p className="text-2xl">🎯</p>
+              <p className="mt-2 text-sm font-semibold">Sin misiones activas hoy</p>
+              <p className="text-xs text-muted-foreground">
+                Vuelve mañana o recicla para desbloquear retos
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {dailyMissions.map((m) => (
+                <div
+                  key={m.id}
+                  className={`flex items-center gap-3 rounded-2xl p-2.5 transition-smooth ${
+                    m.done ? "bg-success/10" : "bg-muted/40"
                   }`}
                 >
-                  {m.done ? "✓" : `+${m.xp}xp`}
-                </span>
-              </div>
-            ))}
-          </div>
+                  <span className="text-xl">{m.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate text-sm font-semibold ${m.done && "line-through opacity-70"}`}>
+                      {m.title}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
+                      m.done
+                        ? "bg-success text-success-foreground"
+                        : "bg-primary/15 text-primary"
+                    }`}
+                  >
+                    {m.done ? "✓" : `+${m.xp}xp`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* ── Meta semanal ── */}
+      {/* ── Meta semanal + gráfico de actividad ── */}
       <section className="px-5 pt-5">
         <div className="rounded-3xl bg-card p-4 shadow-soft">
+          {/* Encabezado kg / meta */}
           <div className="flex items-end justify-between">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
               <div>
                 <p className="text-xs text-muted-foreground">Meta semanal</p>
                 <p className="font-display text-xl font-extrabold">
-                  {weeklyDone}{" "}
+                  {totalKg.toFixed(1)}{" "}
                   <span className="text-sm text-muted-foreground">/ {weeklyGoal} kg</span>
                 </p>
               </div>
             </div>
-            <p className="text-sm font-bold text-primary">{weekly}%</p>
+            <p className="text-sm font-bold text-primary">{weeklyPct}%</p>
           </div>
-          <div className="mt-3 flex h-16 items-end justify-between gap-1.5">
-            {WEEKLY_KG.map((v, i) => {
-              const h = Math.max(8, (v / maxWeek) * 100);
-              const today = i === 3;
-              return (
-                <div key={i} className="flex flex-1 flex-col items-center gap-1">
-                  <div
-                    className={`w-full rounded-t-md ${
-                      v === 0
-                        ? "bg-muted"
-                        : today
-                        ? "bg-gradient-primary"
-                        : "bg-primary/30"
-                    }`}
-                    style={{ height: `${h}%` }}
-                  />
-                  <span
-                    className={`text-[10px] ${
-                      today ? "font-bold text-primary" : "text-muted-foreground"
-                    }`}
-                  >
-                    {WEEK_LABELS[i]}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+
+          {/* Gráfico: puntos ganados por día (últimos 7 días desde wallet_entries) */}
+          {loadingWallet ? (
+            <div className="mt-3 h-16 animate-pulse rounded-xl bg-muted" />
+          ) : (
+            <div className="mt-3 flex h-16 items-end justify-between gap-1.5">
+              {weeklyBars.map((bar, i) => {
+                const h = bar.value === 0 ? 8 : Math.max(12, (bar.value / maxBar) * 100);
+                return (
+                  <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                    <div
+                      className={`w-full rounded-t-md transition-all duration-500 ${
+                        bar.value === 0
+                          ? "bg-muted"
+                          : bar.isToday
+                          ? "bg-gradient-primary"
+                          : "bg-primary/30"
+                      }`}
+                      style={{ height: `${h}%` }}
+                    />
+                    <span
+                      className={`text-[10px] ${
+                        bar.isToday ? "font-bold text-primary" : "text-muted-foreground"
+                      }`}
+                    >
+                      {bar.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -363,14 +481,15 @@ const Dashboard = () => {
         >
           <span className="text-3xl">🏆</span>
           <div className="min-w-0 flex-1">
-            <p className="font-display text-sm font-extrabold">Reto PUCP vs UNI</p>
+            <p className="font-display text-sm font-extrabold">Comunidad RECIPE</p>
             <p className="text-xs text-muted-foreground">
-              Tu universidad va #1 — sigue sumando kilos
+              Compite con otras universidades y sube en el ranking
             </p>
           </div>
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
         </Link>
       </section>
+
     </MobileShell>
   );
 };
