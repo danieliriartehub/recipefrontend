@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Mail, Lock, User as UserIcon, Loader2, CheckCircle, ArrowLeft } from "lucide-react";
+import { Mail, Lock, User as UserIcon, Loader2, CheckCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 // ─── Validaciones ─────────────────────────────────────────────────────────────
 const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -34,6 +35,8 @@ const Auth = () => {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [countdown, setCountdown]     = useState(0);
   const [emailSent, setEmailSent]     = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [forgotSent, setForgotSent]   = useState(false);
 
   const isNewUserRef = useRef(false);
   const { signIn, signUp, session } = useAuth();
@@ -71,11 +74,29 @@ const Auth = () => {
   };
 
   const handlePasswordChange = (v: string) => {
-    setPassword(v);
-    if (v && v.length < 8) {
+    // Sanitización anti-inyección: elimina caracteres peligrosos antes de guardar
+    const sanitized = v.replace(/[<>'"`;\\]/g, "");
+    setPassword(sanitized);
+    if (sanitized && sanitized.length < 8) {
       setErrors((e) => ({ ...e, password: "Mínimo 8 caracteres" }));
     } else {
       setErrors((e) => ({ ...e, password: undefined }));
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast.error("Ingresa tu correo primero");
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/auth?mode=reset",
+    });
+    if (!error) {
+      setForgotSent(true);
+      toast.success("📧 Correo enviado", { description: "Revisa tu bandeja de entrada." });
+    } else {
+      toast.error("Error", { description: error.message });
     }
   };
 
@@ -245,17 +266,43 @@ const Auth = () => {
               <Lock className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
               <Input
                 id="pass"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
-                className={`h-12 rounded-xl pl-10 ${
+                maxLength={72}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                className={`h-12 rounded-xl pl-10 pr-10 ${
                   errors.password ? "border-destructive focus-visible:ring-destructive" : ""
                 }`}
                 value={password}
                 onChange={(e) => handlePasswordChange(e.target.value)}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
             {errors.password && (
               <p className="pl-1 text-xs text-destructive">{errors.password}</p>
+            )}
+            {mode === "login" && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+                {forgotSent && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Correo enviado a {email}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
