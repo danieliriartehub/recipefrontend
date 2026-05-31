@@ -4,7 +4,8 @@ import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
 import { useAuth } from "@/lib/auth";
 import { generateQrToken } from "@/lib/api";
-import { RefreshCw, ShieldCheck, Wallet as WalletIcon } from "lucide-react";
+import { Download, RefreshCw, Share2, ShieldCheck, Wallet as WalletIcon } from "lucide-react";
+import { toast } from "sonner";
 import QRCode from "qrcode";
 
 const QrScreen = () => {
@@ -64,8 +65,46 @@ const QrScreen = () => {
     return () => clearInterval(interval);
   }, [expiresAt, refreshQr]);
 
+  // ── Guardar QR como imagen ────────────────────────────────────────────────
+  const handleSaveImage = async () => {
+    if (!qrDataUrl) return;
+    const link = document.createElement("a");
+    link.href = qrDataUrl;
+    link.download = `QR-RECIPE-${profile?.qr_code ?? user?.id}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("QR guardado en tu dispositivo");
+  };
+
+  // ── Compartir QR (Web Share API con archivo, o copia el token) ─────────
+  const handleShareQr = async () => {
+    if (!qrDataUrl) return;
+    try {
+      const res  = await fetch(qrDataUrl);
+      const blob = await res.blob();
+      const file = new File(
+        [blob],
+        `QR-RECIPE-${profile?.qr_code}.png`,
+        { type: "image/png" }
+      );
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: "Mi QR RECIPE",
+          text:  `Mi código QR personal de reciclaje USIL - ${profile?.full_name}`,
+          files: [file],
+        });
+      } else {
+        await navigator.clipboard.writeText(token);
+        toast.success("Código copiado al portapapeles");
+      }
+    } catch {
+      toast.error("No se pudo compartir el QR");
+    }
+  };
+
   const fullName = profile?.full_name ?? "Usuario";
-  const qrCode   = profile?.qr_code   ?? "";
+  const qrCode   = profile?.qr_code   ?? `RECIPE-${user?.id?.slice(0, 8) ?? ""}`;
   const points   = profile?.points    ?? 0;
 
   return (
@@ -78,22 +117,25 @@ const QrScreen = () => {
           <div className="rounded-[24px] bg-card p-6">
 
             {/* Encabezado del usuario */}
-            <div className="text-center">
+            <div className="text-center space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                 RECIPE · QR personal
               </p>
-              <h2 className="mt-1 font-display text-2xl font-extrabold">{fullName}</h2>
-              <p className="text-sm text-muted-foreground">
-                {qrCode} · {points} EcoPuntos
+              <h2 className="font-display text-2xl font-extrabold">{fullName}</h2>
+              <p className="inline-block rounded-lg bg-muted px-3 py-1 font-mono text-xs text-muted-foreground">
+                {qrCode}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {points.toLocaleString()} EcoPuntos
               </p>
             </div>
 
-            {/* ── QR image ── */}
+            {/* ── QR image — responsive para pantallas desde 320px ── */}
             <div className="mx-auto mt-5 flex items-center justify-center">
               {loading ? (
-                <div className="h-[280px] w-[280px] animate-pulse rounded-3xl bg-muted" />
+                <div className="h-[min(280px,calc(100vw-80px))] w-[min(280px,calc(100vw-80px))] animate-pulse rounded-3xl bg-muted" />
               ) : error ? (
-                <div className="flex h-[280px] w-[280px] flex-col items-center justify-center rounded-3xl bg-destructive/10 p-6 text-center">
+                <div className="flex h-[min(280px,calc(100vw-80px))] w-[min(280px,calc(100vw-80px))] flex-col items-center justify-center rounded-3xl bg-destructive/10 p-6 text-center">
                   <p className="text-sm text-destructive">{error}</p>
                   <button
                     onClick={refreshQr}
@@ -106,7 +148,7 @@ const QrScreen = () => {
                 <img
                   src={qrDataUrl}
                   alt="Código QR personal RECIPE"
-                  className="h-[280px] w-[280px] rounded-3xl shadow-card"
+                  className="h-[min(280px,calc(100vw-80px))] w-[min(280px,calc(100vw-80px))] rounded-3xl shadow-card"
                 />
               )}
             </div>
@@ -148,14 +190,28 @@ const QrScreen = () => {
               {loading ? "···" : `${token.slice(0, 24)}···`}
             </div>
 
-            {/* Botón renovar manual */}
-            <div className="mt-3 flex justify-center">
+            {/* Botones: Guardar + Compartir + Renovar */}
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={handleSaveImage}
+                disabled={loading || !!error}
+                className="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-xs font-bold text-primary disabled:opacity-40"
+              >
+                <Download className="h-3.5 w-3.5" /> Guardar QR
+              </button>
+              <button
+                onClick={handleShareQr}
+                disabled={loading || !!error}
+                className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground disabled:opacity-40"
+              >
+                <Share2 className="h-3.5 w-3.5" /> Compartir
+              </button>
               <button
                 onClick={refreshQr}
                 disabled={loading}
                 className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50"
               >
-                <RefreshCw className="h-3.5 w-3.5" /> Renovar ahora
+                <RefreshCw className="h-3.5 w-3.5" /> Renovar
               </button>
             </div>
           </div>
@@ -174,6 +230,50 @@ const QrScreen = () => {
             <p className="text-xs text-muted-foreground">Ver historial de puntos</p>
           </div>
         </Link>
+
+        {/* ── Sección informativa "¿Cómo usar tu QR?" ── */}
+        <div className="mb-4 mt-4 rounded-3xl bg-card p-5 shadow-soft">
+          <h3 className="mb-3 font-display text-base font-bold">¿Cómo usar tu QR?</h3>
+          <div className="space-y-3">
+            {[
+              {
+                icon: "1️⃣",
+                title: "Llega al punto de reciclaje",
+                desc: "Dirígete a cualquier campus USIL habilitado.",
+              },
+              {
+                icon: "2️⃣",
+                title: "Muestra este QR al operador",
+                desc: "El operador lo escaneará para validar tu identidad.",
+              },
+              {
+                icon: "3️⃣",
+                title: "Entrega tus materiales",
+                desc: "Plástico, papel, vidrio o aluminio previamente separados.",
+              },
+              {
+                icon: "4️⃣",
+                title: "Acumula EcoPuntos",
+                desc: "Los puntos se acreditan automáticamente a tu cuenta.",
+              },
+            ].map((step) => (
+              <div key={step.icon} className="flex items-start gap-3">
+                <span className="text-xl">{step.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold">{step.title}</p>
+                  <p className="text-xs text-muted-foreground">{step.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/8 p-3">
+            <p className="text-center text-xs font-semibold text-primary">
+              🔒 Tu QR se renueva cada 60 segundos para mayor seguridad.
+              No compartas capturas de pantalla con otros usuarios.
+            </p>
+          </div>
+        </div>
       </div>
     </MobileShell>
   );
