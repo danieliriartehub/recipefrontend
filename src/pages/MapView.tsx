@@ -58,7 +58,7 @@ const MapView = () => {
   return (
     <MobileShell>
       <ScreenHeader
-        title="Mapa inteligente"
+        title="Puntos de reciclaje"
         subtitle={`${filtered.length} puntos · Campus USIL La Molina`}
         showBell
       />
@@ -76,10 +76,10 @@ const MapView = () => {
         </div>
 
         {/* ── Chips: Solo disponibles + materiales ── */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-5 px-5">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-5 px-5">
           <button
             onClick={() => setOnlyOpen((v) => !v)}
-            className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-smooth ${
+            className={`flex-shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-smooth ${
               onlyOpen
                 ? "bg-primary border-transparent text-white"
                 : "bg-white border-gray-200 text-gray-700"
@@ -95,7 +95,7 @@ const MapView = () => {
               <button
                 key={m}
                 onClick={() => toggle(m)}
-                className={`whitespace-nowrap flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-smooth ${
+                className={`flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-smooth ${
                   active
                     ? "bg-primary/15 border-primary text-primary"
                     : "bg-white border-gray-200 text-gray-700"
