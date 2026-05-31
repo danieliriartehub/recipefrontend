@@ -332,10 +332,10 @@ export async function searchCenters(params: {
 }) {
   let query = supabase.from('centers').select('*')
 
-  if (params.campus) {
-    query = query.or(
-      `district.ilike.%${params.campus}%,address.ilike.%${params.campus}%`
-    )
+  if (params.campus === 'SL01') {
+    query = query.ilike('address', '%SL01%')
+  } else if (params.campus === 'SL02') {
+    query = query.ilike('address', '%SL02%')
   }
 
   if (params.material) {

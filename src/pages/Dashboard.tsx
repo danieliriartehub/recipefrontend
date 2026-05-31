@@ -9,7 +9,7 @@ import {
   getMissionsWithProgress,
   getNotifications,
 } from "@/lib/api";
-import { STATUS_META, getEcoTitle } from "@/data/mock";
+import { getEcoTitle } from "@/data/mock";
 import {
   Bell,
   ChevronRight,
@@ -36,6 +36,19 @@ const Skeleton = ({ className = "" }: { className?: string }) => (
   <div className={`animate-pulse rounded-2xl bg-muted ${className}`} />
 );
 
+// ─── Distancia Haversine (km) ─────────────────────────────────────────────────
+function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 /** Devuelve el string YYYY-MM-DD para un Date en hora local */
 function toLocalDate(d: Date): string {
@@ -58,6 +71,22 @@ const Dashboard = () => {
       window.removeEventListener("online",  on);
       window.removeEventListener("offline", off);
     };
+  }, []);
+
+  // ── Geolocalización del usuario ───────────────────────────────────────────
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState(false);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationError(true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setLocationError(true),
+      { timeout: 5000 }
+    );
   }, []);
 
   // ── Valores derivados del perfil ───────────────────────────────────────────
@@ -98,16 +127,16 @@ const Dashboard = () => {
     enabled: !!user,
   });
 
-  // ── Centro recomendado ─────────────────────────────────────────────────────
-  // Primero con status "abierto"; si no hay, el primero de la lista
-  const rec = useMemo(() => {
-    const open = (centers as any[]).find((c) => c.status === "abierto");
-    return open ?? (centers as any[])[0] ?? null;
-  }, [centers]);
-
-  const recStatus = rec
-    ? STATUS_META[rec.status as keyof typeof STATUS_META] ?? null
-    : null;
+  // ── Centro recomendado — el más cercano al usuario con status abierto ────────
+  const nearestCenter = useMemo(() => {
+    if (!userLocation || !(centers as any[]).length) return null;
+    return [...(centers as any[])]
+      .filter((c) => c.status === "abierto")
+      .sort((a, b) =>
+        getDistanceKm(userLocation.lat, userLocation.lng, a.lat, a.lng) -
+        getDistanceKm(userLocation.lat, userLocation.lng, b.lat, b.lng)
+      )[0] ?? null;
+  }, [centers, userLocation]);
 
   // ── Misiones diarias ──────────────────────────────────────────────────────
   // getMissionsWithProgress hace un left-join con user_missions.
@@ -345,62 +374,66 @@ const Dashboard = () => {
         </div>
       </section>
 
-      {/* ── Centro recomendado ── */}
+      {/* ── Centro recomendado — más cercano según geolocalización ── */}
       <section className="px-5 pt-5">
         <div className="mb-2 flex items-center justify-between">
           <h3 className="font-display text-sm font-bold text-muted-foreground">RECOMENDADO POR IA</h3>
           <Link to="/app/map" className="text-xs font-semibold text-primary">Ver mapa →</Link>
         </div>
 
-        {loadingCenters ? (
+        {/* Cargando centros o esperando permiso de ubicación */}
+        {(loadingCenters || (!userLocation && !locationError)) ? (
           <Skeleton className="h-24" />
-        ) : rec && recStatus ? (
+        ) : locationError || !nearestCenter ? (
+          /* Sin permiso de ubicación o sin centros abiertos */
           <Link
-            to={`/app/center/${rec.id}`}
+            to="/app/map"
+            className="flex items-center gap-3 rounded-3xl bg-card p-5 shadow-soft transition-bounce hover:-translate-y-0.5"
+          >
+            <MapPin className="h-8 w-8 flex-none text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Activa tu ubicación</p>
+              <p className="text-xs text-muted-foreground">
+                para ver el centro más cercano
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 flex-none text-muted-foreground" />
+          </Link>
+        ) : (
+          /* Centro más cercano con distancia real */
+          <Link
+            to={`/app/center/${nearestCenter.id}`}
             className="block rounded-3xl bg-card p-4 shadow-soft transition-bounce hover:-translate-y-0.5"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="truncate font-display text-base font-extrabold">{rec.name}</h4>
-                  <span
-                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${recStatus.bg} ${recStatus.text}`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${recStatus.dot} animate-pulse`} />
-                    {recStatus.label}
+                  <h4 className="truncate font-display text-base font-extrabold">{nearestCenter.name}</h4>
+                  <span className="flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                    Abierto
                   </span>
                 </div>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {rec.district} · {rec.address}
+                  {nearestCenter.district} · {nearestCenter.address}
                 </p>
                 <div className="mt-3 flex items-center gap-4 text-xs">
                   <span className="flex items-center gap-1 font-semibold">
                     <MapPin className="h-3.5 w-3.5 text-primary" />
-                    {/* Supabase devuelve snake_case; fallback a camelCase por compatibilidad */}
-                    {rec.distance_km ?? rec.distanceKm ?? "—"} km
+                    {getDistanceKm(
+                      userLocation!.lat, userLocation!.lng,
+                      nearestCenter.lat, nearestCenter.lng
+                    ).toFixed(1)} km
                   </span>
                   <span className="flex items-center gap-1 font-semibold">
                     <Navigation className="h-3.5 w-3.5 text-primary" />
-                    {rec.eta_min ?? rec.etaMin ?? "—"} min
-                  </span>
-                  <span className="font-semibold text-success">
-                    ~{rec.wait_min ?? rec.waitMin ?? 0} min espera
+                    ~{nearestCenter.wait_minutes ?? 0} min espera
                   </span>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </div>
           </Link>
-        ) : (
-          /* Estado vacío: no hay centros en la BD todavía */
-          <div className="rounded-3xl bg-card p-5 text-center shadow-soft">
-            <p className="text-sm text-muted-foreground">
-              No hay centros disponibles por ahora.
-            </p>
-            <Link to="/app/map" className="mt-1 block text-xs font-bold text-primary">
-              Explorar mapa →
-            </Link>
-          </div>
         )}
       </section>
 

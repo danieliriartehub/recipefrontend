@@ -21,14 +21,11 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; lab
   cerrado:       { bg: "bg-destructive/15",text: "text-destructive",        dot: "bg-destructive",      label: "Cerrado" },
 };
 
+// Campus activos de USIL — ambos en La Molina
 const campusUSIL = [
   "Todos",
-  "La Molina",
-  "Miraflores",
-  "San Isidro",
-  "San Miguel",
-  "Rímac",
-  "Santiago de Surco",
+  "La Molina - SL01 (Belaunde Terry)",
+  "La Molina - SL02 (Miguel Grau)",
 ];
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -46,7 +43,8 @@ const MapView = () => {
     queryKey: ["centers", query, filters, campus, onlyOpen],
     queryFn: () =>
       searchCenters({
-        campus:     campus !== "Todos" ? campus : undefined,
+        // Extrae 'SL01' o 'SL02' del nombre del campus seleccionado
+        campus:     campus !== "Todos" ? (campus.match(/SL\d+/)?.[0]) : undefined,
         material:   filters.length === 1 ? filters[0] : undefined,
         onlyActive: onlyOpen,
       }),
@@ -80,7 +78,7 @@ const MapView = () => {
     <MobileShell>
       <ScreenHeader
         title="Mapa inteligente"
-        subtitle={`${filtered.length} puntos · campus USIL`}
+        subtitle={`${filtered.length} puntos · Campus USIL La Molina`}
         showBell
       />
 
@@ -178,11 +176,13 @@ const MapView = () => {
             </div>
           </div>
 
-          {/* Pins de centros — muestra district en lugar de coordenada */}
+          {/* Pins de centros — posiciones ajustadas para 2 campus USIL en La Molina */}
           {filtered.slice(0, 6).map((c, i) => {
             const positions = [
-              { l: "22%", t: "28%" }, { l: "68%", t: "22%" }, { l: "78%", t: "62%" },
-              { l: "30%", t: "70%" }, { l: "55%", t: "48%" }, { l: "12%", t: "55%" },
+              { l: "42%", t: "45%" }, // SL01 - Belaunde Terry
+              { l: "58%", t: "52%" }, // SL02 - Miguel Grau
+              { l: "30%", t: "35%" }, { l: "65%", t: "30%" },
+              { l: "20%", t: "60%" }, { l: "70%", t: "65%" },
             ];
             const p = positions[i];
             const s = STATUS_STYLES[c.status] ?? STATUS_STYLES["cerrado"];
@@ -206,7 +206,7 @@ const MapView = () => {
           })}
 
           <div className="absolute bottom-3 left-3 rounded-full bg-card/90 px-3 py-1.5 text-xs font-medium shadow-card backdrop-blur">
-            📍 Lima · GPS activo
+            📍 La Molina, Lima · Campus USIL
           </div>
           <div className="absolute bottom-3 right-3 flex gap-1.5 rounded-full bg-card/90 px-2.5 py-1.5 text-[10px] font-semibold shadow-card backdrop-blur">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-success" />Libre</span>
