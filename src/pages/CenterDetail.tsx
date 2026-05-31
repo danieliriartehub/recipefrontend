@@ -6,7 +6,7 @@ import { MaterialChip } from "@/components/recipe/MaterialChip";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle, CheckCircle2, Clock, MapPin,
-  Navigation, Phone, Share2, Star, Users,
+  Navigation, Phone, Star, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCenterById } from "@/lib/api";
@@ -16,7 +16,7 @@ const STATUS_META: Record<string, { label: string; bg: string; text: string; dot
   abierto:       { label: "Abierto",       bg: "bg-green-100",  text: "text-green-800",  dot: "bg-green-500" },
   alta_demanda:  { label: "Alta demanda",  bg: "bg-yellow-100", text: "text-yellow-800", dot: "bg-yellow-500" },
   lleno:         { label: "Lleno",         bg: "bg-orange-100", text: "text-orange-800", dot: "bg-orange-500" },
-  mantenimiento: { label: "Mantenimiento", bg: "bg-gray-100",   text: "text-gray-600",   dot: "bg-gray-400" },
+  mantenimiento: { label: "Mantenimiento", bg: "bg-gray-100",   text: "text-gray-700",   dot: "bg-gray-400" },
   cerrado:       { label: "Cerrado",       bg: "bg-red-100",    text: "text-red-700",    dot: "bg-red-500" },
 };
 
@@ -49,17 +49,25 @@ const CenterDetail = () => {
 
   // ── Web Share API ─────────────────────────────────────────────────────────
   const handleShare = async () => {
+    if (!center) return;
     const c = center as any;
     if (navigator.share) {
       await navigator.share({
-        title: c?.name,
-        text:  `Centro de acopio USIL: ${c?.name}`,
+        title: c.name,
+        text:  `Centro de reciclaje USIL: ${c.name}`,
         url:   window.location.href,
       });
     } else {
       await navigator.clipboard.writeText(window.location.href);
-      toast.success("Enlace copiado");
+      toast.success("Enlace copiado al portapapeles");
     }
+  };
+
+  // ── Ver ruta en Google Maps ────────────────────────────────────────────────
+  const handleVerRuta = () => {
+    const c = center as any;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}`;
+    window.open(url, "_blank");
   };
 
   // ─── Error ────────────────────────────────────────────────────────────────
@@ -68,6 +76,7 @@ const CenterDetail = () => {
       <MobileShell>
         <ScreenHeader title="Centro de acopio" back />
         <div className="px-5 py-10 text-center space-y-3">
+
           <p className="font-semibold text-destructive">
             No se pudo cargar el centro.
           </p>
@@ -87,7 +96,11 @@ const CenterDetail = () => {
 
   return (
     <MobileShell>
-      <ScreenHeader title="Centro de acopio" back />
+      <ScreenHeader
+        title="Centro de acopio"
+        back
+        onShare={center ? handleShare : undefined}
+      />
 
       <div className="px-5 space-y-4">
 
@@ -140,7 +153,7 @@ const CenterDetail = () => {
           <div className="rounded-3xl bg-card p-5 shadow-card">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="font-display text-2xl font-extrabold">{c.name}</h2>
+                <h2 className="font-display text-xl font-extrabold break-words">{c.name}</h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   {c.address}, {c.district}
                 </p>
@@ -151,23 +164,27 @@ const CenterDetail = () => {
               </span>
             </div>
 
-            {/* Grid métricas */}
+            {/* Grid métricas — Fix 1 */}
             <div className="mt-4 grid grid-cols-3 divide-x divide-border rounded-2xl bg-muted/50 py-3 text-center">
               <div>
-                <p className="font-display text-lg font-extrabold text-primary">—</p>
-                <p className="text-[11px] text-muted-foreground">Distancia</p>
-              </div>
-              <div>
-                <p className="font-display text-lg font-extrabold text-primary">
-                  {c.wait_minutes} min
+                <p className="font-display text-base font-extrabold text-primary">
+                  {c.wait_minutes}
+                  <span className="text-xs font-normal"> min</span>
                 </p>
-                <p className="text-[11px] text-muted-foreground">Espera</p>
+                <p className="text-[11px] text-muted-foreground">Espera est.</p>
               </div>
               <div>
-                <p className="flex items-center justify-center gap-1 font-display text-lg font-extrabold text-primary">
+                <p className="font-display text-base font-extrabold text-primary">
+                  {c.capacity}
+                  <span className="text-xs font-normal">%</span>
+                </p>
+                <p className="text-[11px] text-muted-foreground">Capacidad</p>
+              </div>
+              <div>
+                <p className="flex items-center justify-center gap-1 font-display text-base font-extrabold text-primary">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /> {c.rating}
                 </p>
-                <p className="text-[11px] text-muted-foreground">Rating</p>
+                <p className="text-[11px] text-muted-foreground">Valoración</p>
               </div>
             </div>
           </div>
@@ -207,7 +224,7 @@ const CenterDetail = () => {
                 </div>
                 <div className="flex items-center gap-2 rounded-xl bg-muted/50 p-2">
                   <Clock className="h-4 w-4 text-primary" />
-                  <span>Horario: <strong>{c.hours?.split("·")[1]?.trim() ?? c.hours}</strong></span>
+                  <span className="text-xs">{c.hours}</span>
                 </div>
               </div>
             </div>
@@ -266,13 +283,16 @@ const CenterDetail = () => {
                 <Clock className="h-4 w-4 text-primary" />
                 {c.hours}
               </div>
-              <div className="flex items-center gap-3">
+              <a
+                href="tel:+5117080000"
+                className="flex items-center gap-3 text-sm text-primary font-medium"
+              >
                 <Phone className="h-4 w-4 text-primary" />
-                Consultar en campus USIL
-              </div>
+                Central USIL: (01) 708-0000
+              </a>
               <div className="flex items-center gap-3">
                 <MapPin className="h-4 w-4 text-primary" />
-                {c.address}
+                {c.address}, {c.district}
               </div>
             </div>
           </div>
@@ -284,10 +304,11 @@ const CenterDetail = () => {
             variant="outline"
             size="lg"
             className="h-13 rounded-2xl border-2 font-semibold"
-            onClick={handleShare}
-            disabled={isLoading}
+            onClick={handleVerRuta}
+            disabled={isLoading || !c?.lat || !c?.lng}
+            title={(!c?.lat || !c?.lng) ? "Ubicación no disponible" : undefined}
           >
-            <Share2 className="mr-2 h-4 w-4" /> Compartir
+            <Navigation className="mr-2 h-4 w-4" /> Ver ruta
           </Button>
           <Button
             asChild
