@@ -10,14 +10,15 @@ import { searchCenters } from "@/lib/api";
 
 // ─── Constantes locales (evita import de mock) ───────────────────────────────
 
-const MATERIAL_KEYS = ["plastico", "papel", "vidrio", "aluminio", "organico", "electronico"] as const;
+// Solo los 4 materiales que existen en MATERIALS de mock
+const MATERIAL_KEYS = ["plastico", "papel", "vidrio", "aluminio"] as const;
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  abierto:         { bg: "bg-success/15",    text: "text-success-foreground", dot: "bg-success",          label: "Abierto" },
-  "alta demanda":  { bg: "bg-accent/15",     text: "text-accent-foreground",  dot: "bg-accent",           label: "Alta demanda" },
-  lleno:           { bg: "bg-orange-500/15", text: "text-orange-700",         dot: "bg-orange-500",       label: "Lleno" },
-  mantenimiento:   { bg: "bg-muted",         text: "text-muted-foreground",   dot: "bg-muted-foreground", label: "Mantenimiento" },
-  cerrado:         { bg: "bg-destructive/15",text: "text-destructive",        dot: "bg-destructive",      label: "Cerrado" },
+  abierto:       { bg: "bg-success/15",    text: "text-success-foreground", dot: "bg-success",          label: "Abierto" },
+  alta_demanda:  { bg: "bg-accent/15",     text: "text-accent-foreground",  dot: "bg-accent",           label: "Alta demanda" },
+  lleno:         { bg: "bg-orange-500/15", text: "text-orange-700",         dot: "bg-orange-500",       label: "Lleno" },
+  mantenimiento: { bg: "bg-muted",         text: "text-muted-foreground",   dot: "bg-muted-foreground", label: "Mantenimiento" },
+  cerrado:       { bg: "bg-destructive/15",text: "text-destructive",        dot: "bg-destructive",      label: "Cerrado" },
 };
 
 const campusUSIL = [

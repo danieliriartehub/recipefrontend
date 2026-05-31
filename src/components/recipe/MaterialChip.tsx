@@ -9,7 +9,7 @@ interface MaterialChipProps {
 }
 
 export const MaterialChip = ({ material, active, onClick, size = "md" }: MaterialChipProps) => {
-  const m = MATERIALS[material];
+  const m = MATERIALS[material] ?? { emoji: "♻️", label: String(material) };
   const interactive = !!onClick;
   return (
     <button
