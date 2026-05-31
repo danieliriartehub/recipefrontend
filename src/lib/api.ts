@@ -272,3 +272,24 @@ export async function getScanHistory(userId: string) {
   if (error) throw error
   return data
 }
+
+export async function getCentersByMaterial(material: string) {
+  const { data, error } = await supabase
+    .from('centers')
+    .select('*')
+    .contains('accepted_materials', [material])
+    .not('status', 'in', '("cerrado","mantenimiento")')
+    .order('capacity')
+  if (error) throw error
+  return data
+}
+
+export async function searchCenters(query: string) {
+  const { data, error } = await supabase
+    .from('centers')
+    .select('*')
+    .or(`name.ilike.%${query}%,district.ilike.%${query}%`)
+    .order('name')
+  if (error) throw error
+  return data
+}
