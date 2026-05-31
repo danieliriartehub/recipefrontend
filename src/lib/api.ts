@@ -23,6 +23,28 @@ export async function getCenterById(id: string) {
 
 // ─── WALLET ───────────────────────────────────────────────────────────────────
 
+export async function getUserWallet(userId: string) {
+  const { data, error } = await supabase
+    .from('user_wallet')
+    .select('current_balance')
+    .eq('user_id', userId)
+    .single()
+  if (error) throw error
+  return data?.current_balance ?? 0
+}
+
+export async function getRecentWalletTransactions(userId: string) {
+  const { data, error } = await supabase
+    .from('wallet_transactions')
+    .select('*')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(5)
+  if (error) throw error
+  return data ?? []
+}
+
 export async function getWalletEntries(userId: string) {
   const { data, error } = await supabase
     .from('wallet_history')

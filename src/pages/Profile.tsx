@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { useAuth } from "@/lib/auth";
-import { updateProfile } from "@/lib/api";
-import { BADGES, MATERIALS, ACTIVITY, CENTERS } from "@/data/mock";
-import { getEcoTitle } from "@/data/mock";
+import { getUserWallet, getRecentWalletTransactions, updateProfile } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,58 +14,103 @@ import {
   Bell, ChevronRight, HelpCircle, Leaf, LogOut, Pencil, Settings,
   Shield, Ticket, ShoppingBag, Wallet as WalletIcon, Trophy,
   Calculator, TreePine, Droplets, Wind, Loader2,
+  ArrowDownLeft, ArrowUpRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Niveles ─────────────────────────────────────────────────────────────────
-const LEVEL_NAMES = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
+const LEVEL_NAMES      = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
 const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 10000];
 
+const ECO_TITLES = [
+  { min: 0,     emoji: "🌱", title: "Semilla",        color: "from-green-400 to-green-600" },
+  { min: 500,   emoji: "🌿", title: "Brote",          color: "from-emerald-400 to-emerald-600" },
+  { min: 1500,  emoji: "🌳", title: "Sembrador",      color: "from-teal-400 to-teal-600" },
+  { min: 3000,  emoji: "⚡", title: "Eco Warrior",    color: "from-cyan-400 to-blue-500" },
+  { min: 5000,  emoji: "🌍", title: "Guardián Verde", color: "from-blue-500 to-indigo-600" },
+  { min: 10000, emoji: "🏆", title: "Leyenda Eco",    color: "from-purple-500 to-pink-500" },
+];
+
+function getEcoTitle(points: number) {
+  return [...ECO_TITLES].reverse().find((t) => points >= t.min) ?? ECO_TITLES[0];
+}
+
+// ─── Validación Zod ───────────────────────────────────────────────────────────
+const profileSchema = z.object({
+  full_name: z.string().min(1, "Este campo es obligatorio"),
+  username:  z.string().min(1, "Este campo es obligatorio"),
+  email:     z.string().email("Correo electrónico inválido"),
+});
+type ProfileForm = z.infer<typeof profileSchema>;
+
+// ─── Componente ───────────────────────────────────────────────────────────────
 const Profile = () => {
   const { profile, user, signOut, refreshProfile } = useAuth();
   const nav = useNavigate();
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
 
-  // ─── Edición ───────────────────────────────────────────────────────────────
-  const [editing, setEditing]     = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const [editName, setEditName]   = useState("");
-  const [editCareer, setEditCareer] = useState("");
+  // ─── Saldo real desde user_wallet ─────────────────────────────────────────
+  const { data: balance = 0, isLoading: balanceLoading } = useQuery({
+    queryKey: ["wallet", user?.id],
+    queryFn:  () => getUserWallet(user!.id),
+    enabled:  !!user,
+  });
 
-  const startEdit = () => {
-    setEditName(profile?.full_name ?? "");
-    setEditCareer(profile?.career ?? "");
-    setEditing(true);
-  };
+  // ─── Últimos 5 movimientos ────────────────────────────────────────────────
+  const { data: transactions = [], isLoading: txLoading } = useQuery({
+    queryKey: ["wallet_transactions", user?.id],
+    queryFn:  () => getRecentWalletTransactions(user!.id),
+    enabled:  !!user,
+  });
 
-  const saveEdit = async () => {
-    if (!user) return;
-    setSaving(true);
-    try {
-      await updateProfile(user.id, {
-        full_name: editName.trim() || undefined,
-        career: editCareer.trim() || undefined,
-      });
+  // ─── Formulario con validación ────────────────────────────────────────────
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isDirty, isValid },
+  } = useForm<ProfileForm>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      full_name: profile?.full_name ?? "",
+      username:  profile?.username  ?? "",
+      email:     user?.email        ?? "",
+    },
+  });
+
+  // Sincroniza cuando el perfil carga de forma asíncrona
+  useEffect(() => {
+    reset({
+      full_name: profile?.full_name ?? "",
+      username:  profile?.username  ?? "",
+      email:     user?.email        ?? "",
+    });
+  }, [profile, user, reset]);
+
+  // ─── Mutación guardar perfil ──────────────────────────────────────────────
+  const mutation = useMutation({
+    mutationFn: ({ full_name, username }: ProfileForm) =>
+      updateProfile(user!.id, { full_name, username }),
+    onSuccess: async () => {
       await refreshProfile();
-      toast.success("Perfil actualizado ✅");
+      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
+      toast.success("Perfil actualizado correctamente");
       setEditing(false);
-    } catch (err) {
-      toast.error("No se pudo guardar. Intenta de nuevo.");
-      console.error(err);
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onError: () => {
+      toast.error("No se pudieron guardar los cambios. Inténtalo de nuevo");
+    },
+  });
 
   const handleSignOut = async () => {
     await signOut();
-    // replace:true reemplaza la entrada en el historial → el botón Atrás del
-    // celular no puede regresar a /app después de cerrar sesión
     nav("/auth", { replace: true });
   };
 
-  // ─── Datos del perfil con defaults para usuario nuevo ─────────────────────
+  // ─── Datos del perfil ─────────────────────────────────────────────────────
   const levelIndex  = profile?.level_index  ?? 0;
-  const points      = profile?.points       ?? 0;
+  const points      = profile?.points       ?? 0; // solo para calcular % de progreso
   const streak      = profile?.streak_days  ?? 0;
   const totalKg     = profile?.total_kg     ?? 0;
   const co2Saved    = profile?.co2_saved_kg ?? 0;
@@ -77,12 +124,9 @@ const Profile = () => {
   const username    = profile?.username ?? null;
   const career      = profile?.career   ?? null;
 
-  // Impacto derivado de los datos reales
-  const impactCo2     = co2Saved;
-  const impactTrees   = +(co2Saved / 21).toFixed(2);
-  const impactWater   = Math.round(totalKg * 18);
-
-  const unlockedBadges = BADGES.filter((b) => b.unlocked); // mock hasta que haya DB
+  const impactCo2   = co2Saved;
+  const impactTrees = +(co2Saved / 21).toFixed(2);
+  const impactWater = Math.round(totalKg * 18);
 
   const menu = [
     { icon: WalletIcon,  label: "Eco Wallet",             to: "/app/wallet" },
@@ -104,17 +148,21 @@ const Profile = () => {
         <div className="relative flex items-center justify-between">
           <h1 className="font-display text-xl font-extrabold">Mi perfil</h1>
           <button
-            onClick={editing ? saveEdit : startEdit}
-            disabled={saving}
+            onClick={() =>
+              editing
+                ? handleSubmit((d) => mutation.mutate(d))()
+                : setEditing(true)
+            }
+            disabled={editing && (!isDirty || !isValid || mutation.isPending)}
             className="flex h-10 items-center gap-1.5 rounded-full bg-white/15 px-3 backdrop-blur disabled:opacity-60"
           >
-            {saving ? (
+            {mutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Pencil className="h-4 w-4" />
             )}
             <span className="text-xs font-bold">
-              {saving ? "Guardando…" : editing ? "Guardar" : "Editar"}
+              {mutation.isPending ? "Guardando…" : editing ? "Guardar" : "Editar"}
             </span>
           </button>
         </div>
@@ -142,11 +190,15 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Barra de progreso */}
+        {/* Tarjeta de puntos / barra de progreso */}
         <div className="relative mt-5 rounded-2xl bg-white/15 p-4 backdrop-blur">
           <div className="flex justify-between text-xs font-semibold">
             <span>🌿 {levelName}</span>
-            <span>{points} / {nextLevelAt} pts</span>
+            {balanceLoading ? (
+              <div className="h-4 w-28 animate-pulse rounded bg-white/20" />
+            ) : (
+              <span>{(balance as number).toLocaleString()} EcoPuntos</span>
+            )}
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/20">
             <div
@@ -171,27 +223,15 @@ const Profile = () => {
             </Link>
           </div>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            {unlockedBadges.length > 0 ? (
-              unlockedBadges.map((b) => (
-                <div
-                  key={b.id}
-                  className="flex w-20 flex-none flex-col items-center rounded-2xl bg-muted/40 p-2 text-center"
-                >
-                  <span className="text-2xl">{b.emoji}</span>
-                  <p className="mt-1 line-clamp-1 text-[10px] font-bold">{b.name}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-muted-foreground py-2">
-                Aún no has desbloqueado badges. ¡Empieza a reciclar! 🌱
-              </p>
-            )}
+            <p className="py-2 text-xs text-muted-foreground">
+              Aún no has desbloqueado badges. ¡Empieza a reciclar! 🌱
+            </p>
           </div>
         </div>
       </section>
 
       {/* ── Stats ── */}
-      <section className="px-5 pt-5 grid grid-cols-3 gap-2">
+      <section className="grid grid-cols-3 gap-2 px-5 pt-5">
         <div className="rounded-2xl bg-card p-3 text-center shadow-soft">
           <p className="font-display text-xl font-extrabold text-primary">
             {totalKg}<span className="text-xs">kg</span>
@@ -243,66 +283,106 @@ const Profile = () => {
 
       {/* ── Formulario de edición ── */}
       {editing && (
-        <section className="mx-5 mt-5 space-y-3 rounded-3xl bg-card p-5 shadow-soft animate-slide-up">
+        <form
+          onSubmit={handleSubmit((d) => mutation.mutate(d))}
+          className="mx-5 mt-5 space-y-3 rounded-3xl bg-card p-5 shadow-soft animate-slide-up"
+        >
           <p className="font-display text-base font-bold">Editar datos</p>
-          <div className="space-y-1.5">
+
+          <div className="space-y-1">
             <Label>Nombre completo</Label>
             <Input
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
+              {...register("full_name")}
               className="h-11 rounded-xl"
               placeholder="Tu nombre"
             />
+            {errors.full_name && (
+              <p className="mt-1 text-xs text-destructive">{errors.full_name.message}</p>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <Label>Carrera</Label>
+
+          <div className="space-y-1">
+            <Label>Nombre de usuario</Label>
             <Input
-              value={editCareer}
-              onChange={(e) => setEditCareer(e.target.value)}
+              {...register("username")}
               className="h-11 rounded-xl"
-              placeholder="Ej. Ingeniería Ambiental"
+              placeholder="@usuario"
             />
+            {errors.username && (
+              <p className="mt-1 text-xs text-destructive">{errors.username.message}</p>
+            )}
           </div>
+
+          <div className="space-y-1">
+            <Label>Correo electrónico</Label>
+            <Input
+              {...register("email")}
+              className="h-11 rounded-xl bg-muted/40"
+              disabled
+            />
+            {errors.email && (
+              <p className="mt-1 text-xs text-destructive">{errors.email.message}</p>
+            )}
+          </div>
+
           <Button
-            onClick={saveEdit}
-            disabled={saving}
+            type="submit"
+            disabled={!isDirty || !isValid || mutation.isPending}
             className="h-11 w-full rounded-xl bg-gradient-primary font-bold"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar cambios"}
+            {mutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Guardar cambios"
+            )}
           </Button>
-        </section>
+        </form>
       )}
 
-      {/* ── Historial reciente (mock hasta tener recyclings en DB) ── */}
+      {/* ── Historial reciente (wallet_transactions) ── */}
       <section className="mx-5 mt-5 rounded-3xl bg-card p-5 shadow-soft">
         <p className="mb-3 font-display text-base font-bold">Historial reciente</p>
-        {ACTIVITY.length > 0 ? (
+
+        {txLoading ? (
           <div className="space-y-2">
-            {ACTIVITY.map((a) => {
-              const m = MATERIALS[a.material];
-              const c = CENTERS.find((x) => x.id === a.centerId);
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-14 animate-pulse rounded-xl bg-muted" />
+            ))}
+          </div>
+        ) : (transactions as any[]).length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Aún no tienes movimientos registrados 🌱
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {(transactions as any[]).map((tx) => {
+              const isIn = tx.type === "IN";
               return (
-                <div key={a.id} className="flex items-center gap-3 rounded-2xl bg-muted/40 p-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-card text-xl">
-                    {m.emoji}
+                <div
+                  key={tx.id ?? tx.transaction_id}
+                  className="flex items-center gap-3 rounded-2xl bg-muted/40 p-3"
+                >
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-card ${isIn ? "text-primary" : "text-destructive"}`}>
+                    {isIn
+                      ? <ArrowDownLeft className="h-5 w-5" />
+                      : <ArrowUpRight className="h-5 w-5" />
+                    }
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">
-                      {m.label} · {a.kg} kg
+                      {tx.description ?? (isIn ? "Reciclaje" : "Canje")}
                     </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {c?.name} · {a.date}
+                    <p className="text-[11px] text-muted-foreground">
+                      {new Date(tx.created_at).toLocaleDateString("es-PE")}
                     </p>
                   </div>
-                  <span className="text-sm font-bold text-primary">+{a.points}</span>
+                  <span className={`text-sm font-bold ${isIn ? "text-primary" : "text-destructive"}`}>
+                    {isIn ? "+" : "-"}{tx.amount ?? 0}
+                  </span>
                 </div>
               );
             })}
           </div>
-        ) : (
-          <p className="text-center text-sm text-muted-foreground py-4">
-            Aún no tienes reciclajes registrados.
-          </p>
         )}
       </section>
 
