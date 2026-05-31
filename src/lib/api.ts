@@ -265,6 +265,27 @@ export async function getWeeklyLeaders() {
   return data
 }
 
+// ─── QR TOKENS ───────────────────────────────────────────────────────────────
+
+export async function generateQrToken(userId: string) {
+  const { data, error } = await supabase
+    .rpc('generate_qr_token', { p_user_id: userId })
+  if (error) throw error
+  return data as {
+    token: string
+    payload: {
+      user_id: string
+      full_name: string
+      qr_code: string
+      points: number
+      expires_at: string
+      issued_at: string
+    }
+    expires_at: string
+    expires_in: number
+  }
+}
+
 // ─── PERFIL ───────────────────────────────────────────────────────────────────
 
 export async function updateProfile(userId: string, updates: {

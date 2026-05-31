@@ -1,111 +1,164 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
 import { useAuth } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import { Download, Share2, ShieldCheck, Check, Wallet as WalletIcon } from "lucide-react";
-
-const QrSvg = ({ seed = "RECIPE" }: { seed?: string }) => {
-  const size = 25;
-  const cells: boolean[][] = [];
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  for (let r = 0; r < size; r++) {
-    cells[r] = [];
-    for (let c = 0; c < size; c++) {
-      h = (h * 1664525 + 1013904223) >>> 0;
-      cells[r][c] = (h & 7) > 3;
-    }
-  }
-  const drawFinder = (r: number, c: number) => {
-    for (let i = 0; i < 7; i++)
-      for (let j = 0; j < 7; j++) {
-        const edge = i === 0 || i === 6 || j === 0 || j === 6;
-        const inner = i >= 2 && i <= 4 && j >= 2 && j <= 4;
-        cells[r + i][c + j] = edge || inner;
-      }
-  };
-  drawFinder(0, 0); drawFinder(0, size - 7); drawFinder(size - 7, 0);
-
-  return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full">
-      <rect width={size} height={size} fill="white" />
-      {cells.flatMap((row, r) =>
-        row.map((on, c) =>
-          on ? <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} fill="hsl(160 25% 12%)" rx={0.15} /> : null
-        )
-      )}
-    </svg>
-  );
-};
+import { generateQrToken } from "@/lib/api";
+import { RefreshCw, ShieldCheck, Wallet as WalletIcon } from "lucide-react";
+import QRCode from "qrcode";
 
 const QrScreen = () => {
-  const { profile } = useAuth();
-  const [validated, setValidated] = useState(false);
+  const { user, profile } = useAuth();
+  const navigate = useNavigate();
 
-  const fullName  = profile?.full_name    ?? "Usuario";
-  const username  = profile?.username     ?? null;
-  const points    = profile?.points       ?? 0;
-  const qrCode    = profile?.qr_code      ?? `RECIPE-${(profile?.id ?? "NEW").slice(0, 8).toUpperCase()}`;
+  const [qrDataUrl, setQrDataUrl]   = useState<string>("");
+  const [token, setToken]           = useState<string>("");
+  const [expiresAt, setExpiresAt]   = useState<Date | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(60);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+
+  // Redirige si no hay sesión
+  useEffect(() => {
+    if (!user && !loading) navigate("/auth", { replace: true });
+  }, [user, loading, navigate]);
+
+  // ── Genera un QR nuevo desde Supabase y lo convierte a imagen ────────────
+  const refreshQr = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await generateQrToken(user.id);
+      setToken(result.token);
+      setExpiresAt(new Date(result.expires_at));
+      setSecondsLeft(60);
+
+      const url = await QRCode.toDataURL(result.token, {
+        width: 280,
+        margin: 2,
+        color: { dark: "#111827", light: "#ffffff" },
+      });
+      setQrDataUrl(url);
+    } catch {
+      setError("No se pudo generar el QR. Intenta de nuevo.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  // QR inicial al montar
+  useEffect(() => { refreshQr(); }, [refreshQr]);
+
+  // Countdown y auto-renovación
+  useEffect(() => {
+    if (!expiresAt) return;
+    const interval = setInterval(() => {
+      const diff = Math.max(
+        0,
+        Math.round((expiresAt.getTime() - Date.now()) / 1000)
+      );
+      setSecondsLeft(diff);
+      if (diff === 0) refreshQr();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt, refreshQr]);
+
+  const fullName = profile?.full_name ?? "Usuario";
+  const qrCode   = profile?.qr_code   ?? "";
+  const points   = profile?.points    ?? 0;
 
   return (
     <MobileShell>
       <ScreenHeader title="Mi código QR" subtitle="Validación instantánea con recompensa" back />
 
       <div className="px-5">
+        {/* ── Card con borde degradado (diseño original) ── */}
         <div className="rounded-[28px] bg-gradient-hero p-1 shadow-float">
           <div className="rounded-[24px] bg-card p-6">
+
+            {/* Encabezado del usuario */}
             <div className="text-center">
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">RECIPE · QR personal</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                RECIPE · QR personal
+              </p>
               <h2 className="mt-1 font-display text-2xl font-extrabold">{fullName}</h2>
               <p className="text-sm text-muted-foreground">
-                {username ? `${username} · ` : ""}{points} pts
+                {qrCode} · {points} EcoPuntos
               </p>
             </div>
 
-            <div className="relative mx-auto mt-5 aspect-square w-full max-w-[260px] overflow-hidden rounded-2xl border-4 border-primary/20 p-3 bg-white">
-              <QrSvg seed={qrCode} />
-              {validated && (
-                <div className="absolute inset-0 flex items-center justify-center bg-success/95 animate-scale-in">
-                  <div className="text-center text-success-foreground">
-                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur">
-                      <Check className="h-10 w-10" strokeWidth={3} />
-                    </div>
-                    <p className="mt-3 font-display text-xl font-extrabold">¡Validado!</p>
-                    <p className="text-sm">+60 EcoPuntos</p>
-                  </div>
+            {/* ── QR image ── */}
+            <div className="mx-auto mt-5 flex items-center justify-center">
+              {loading ? (
+                <div className="h-[280px] w-[280px] animate-pulse rounded-3xl bg-muted" />
+              ) : error ? (
+                <div className="flex h-[280px] w-[280px] flex-col items-center justify-center rounded-3xl bg-destructive/10 p-6 text-center">
+                  <p className="text-sm text-destructive">{error}</p>
+                  <button
+                    onClick={refreshQr}
+                    className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-bold text-white"
+                  >
+                    Reintentar
+                  </button>
                 </div>
+              ) : (
+                <img
+                  src={qrDataUrl}
+                  alt="Código QR personal RECIPE"
+                  className="h-[280px] w-[280px] rounded-3xl shadow-card"
+                />
               )}
             </div>
 
-            <div className="mt-4 flex items-center justify-center gap-2 rounded-full bg-success/10 py-2 text-success">
+            {/* ── Countdown bar ── */}
+            <div className="mt-4 flex items-center gap-2">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full rounded-full transition-all duration-1000 ${
+                    secondsLeft > 20
+                      ? "bg-primary"
+                      : secondsLeft > 10
+                      ? "bg-accent"
+                      : "bg-destructive"
+                  }`}
+                  style={{ width: `${(secondsLeft / 60) * 100}%` }}
+                />
+              </div>
+              <span
+                className={`text-xs font-bold tabular-nums ${
+                  secondsLeft <= 10 ? "text-destructive" : "text-muted-foreground"
+                }`}
+              >
+                {secondsLeft}s
+              </span>
+            </div>
+            <p className="mt-1 text-center text-[11px] text-muted-foreground">
+              Se renueva automáticamente · único por entrega
+            </p>
+
+            {/* Badge verificado */}
+            <div className="mt-3 flex items-center justify-center gap-2 rounded-full bg-success/10 py-2 text-success">
               <ShieldCheck className="h-4 w-4" />
-              <span className="text-xs font-bold">Código verificado · Actualiza cada 60s</span>
+              <span className="text-xs font-bold">Código verificado · USIL</span>
             </div>
 
-            <div className="mt-3 rounded-2xl bg-muted/60 py-2 text-center font-mono text-sm tracking-wider">
-              {qrCode}
+            {/* Token truncado */}
+            <div className="mt-3 overflow-hidden rounded-2xl bg-muted/60 px-3 py-2 text-center font-mono text-sm tracking-wider">
+              {loading ? "···" : `${token.slice(0, 24)}···`}
+            </div>
+
+            {/* Botón renovar manual */}
+            <div className="mt-3 flex justify-center">
+              <button
+                onClick={refreshQr}
+                disabled={loading}
+                className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Renovar ahora
+              </button>
             </div>
           </div>
-        </div>
-
-        {/* Demo simulate validation */}
-        <Button
-          onClick={() => { setValidated(true); setTimeout(() => setValidated(false), 3500); }}
-          size="lg"
-          className="mt-4 h-12 w-full rounded-2xl bg-gradient-primary font-bold shadow-glow"
-        >
-          ✨ Simular validación instantánea
-        </Button>
-
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <Button variant="outline" size="lg" className="h-12 rounded-2xl border-2 font-semibold">
-            <Share2 className="mr-2 h-4 w-4" /> Compartir
-          </Button>
-          <Button variant="outline" size="lg" className="h-12 rounded-2xl border-2 font-semibold">
-            <Download className="mr-2 h-4 w-4" /> Guardar
-          </Button>
         </div>
 
         {/* Acceso directo a Eco Wallet */}
