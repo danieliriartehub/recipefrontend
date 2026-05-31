@@ -320,17 +320,45 @@ export async function getCentersByMaterial(material: string) {
     .select('*')
     .contains('accepted_materials', [material])
     .not('status', 'in', '("cerrado","mantenimiento")')
-    .order('capacity')
+    .order('wait_minutes', { ascending: true })
   if (error) throw error
-  return data
+  return data ?? []
 }
 
-export async function searchCenters(query: string) {
+export async function searchCenters(params: {
+  campus?: string
+  material?: string
+  onlyActive?: boolean
+}) {
+  let query = supabase.from('centers').select('*')
+
+  if (params.campus) {
+    query = query.or(
+      `district.ilike.%${params.campus}%,address.ilike.%${params.campus}%`
+    )
+  }
+
+  if (params.material) {
+    query = query.contains('accepted_materials', [params.material])
+  }
+
+  if (params.onlyActive !== false) {
+    query = query.not('status', 'in', '("cerrado","mantenimiento")')
+  }
+
+  query = query.order('capacity', { ascending: true })
+
+  const { data, error } = await query
+  if (error) throw error
+  return data ?? []
+}
+
+export async function getAvailableCenters() {
   const { data, error } = await supabase
     .from('centers')
-    .select('*')
-    .or(`name.ilike.%${query}%,district.ilike.%${query}%`)
-    .order('name')
+    .select('id, name, district, address, lat, lng, status, accepted_materials, hours, wait_minutes, capacity, rating')
+    .not('status', 'in', '("cerrado","mantenimiento","lleno")')
+    .order('wait_minutes', { ascending: true })
   if (error) throw error
-  return data
+  return data ?? []
 }

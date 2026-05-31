@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { MobileShell } from "@/components/recipe/MobileShell";
@@ -7,7 +7,7 @@ import { MATERIALS, MaterialType, STATUS_META, CenterStatus } from "@/data/mock"
 import { MaterialChip } from "@/components/recipe/MaterialChip";
 import { Clock, MapPin, Star, Search, List, Map as MapIcon, WifiOff, Radio } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { getCenters } from "@/lib/api";
+import { getCenters, searchCenters } from "@/lib/api";
 
 const MapView = () => {
   const [filters, setFilters] = useState<MaterialType[]>([]);
@@ -15,29 +15,37 @@ const MapView = () => {
   const [query, setQuery] = useState("");
   const [onlyOpen, setOnlyOpen] = useState(false);
 
-  // ── Datos reales desde Supabase ──────────────────────────────────────────
-  const { data: centers = [], isLoading } = useQuery({
-    queryKey: ["centers"],
-    queryFn: getCenters,
+  const hasFilters = !!query || filters.length > 0 || onlyOpen;
+
+  // ── Query server-side: usa searchCenters cuando hay filtros, getCenters si no ──
+  const { data: centers = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ["centers", query, filters, onlyOpen],
+    queryFn: () => {
+      if (hasFilters) {
+        return searchCenters({
+          campus:     query     || undefined,
+          material:   filters[0],           // primer material seleccionado
+          onlyActive: onlyOpen,             // true → excluye cerrado/mantenimiento
+        });
+      }
+      return getCenters();
+    },
   });
 
   const toggle = (m: MaterialType) =>
     setFilters((f) => (f.includes(m) ? f.filter((x) => x !== m) : [...f, m]));
 
-  const filtered = useMemo(() => {
-    return centers.filter((c) => {
-      const matchMat = filters.length === 0 || filters.every((f) => c.accepted_materials?.includes(f));
-      const matchQ = !query || (c.name + c.district + c.address).toLowerCase().includes(query.toLowerCase());
-      const matchOpen = !onlyOpen || (c.status !== "cerrado" && c.status !== "mantenimiento" && c.status !== "lleno");
-      return matchMat && matchQ && matchOpen;
-    });
-  }, [centers, filters, query, onlyOpen]);
+  const clearFilters = () => {
+    setQuery("");
+    setFilters([]);
+    setOnlyOpen(false);
+  };
 
   return (
     <MobileShell>
       <ScreenHeader
         title="Mapa inteligente"
-        subtitle={`${filtered.length} puntos en Lima · tiempo real`}
+        subtitle={`${centers.length} puntos en Lima · tiempo real`}
         showBell
       />
 
@@ -108,7 +116,7 @@ const MapView = () => {
             </div>
           </div>
 
-          {filtered.slice(0, 6).map((c, i) => {
+          {(centers as any[]).slice(0, 6).map((c: any, i: number) => {
             const positions = [
               { l: "22%", t: "28%" }, { l: "68%", t: "22%" }, { l: "78%", t: "62%" },
               { l: "30%", t: "70%" }, { l: "55%", t: "48%" }, { l: "12%", t: "55%" },
@@ -146,6 +154,22 @@ const MapView = () => {
       )}
 
       <section className="px-5 pt-4 space-y-3">
+        {/* ── Error de red ── */}
+        {isError && (
+          <div className="p-6 text-center space-y-2">
+            <p className="text-sm text-destructive font-medium">
+              No se pudo cargar la información de centros.
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="text-xs text-primary underline"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {/* ── Skeletons mientras carga (incluso al cambiar filtros) ── */}
         {isLoading && (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -154,7 +178,8 @@ const MapView = () => {
           </div>
         )}
 
-        {!isLoading && filtered.map((c) => {
+        {/* ── Lista de centros ── */}
+        {!isLoading && !isError && (centers as any[]).map((c: any) => {
           const s = STATUS_META[c.status as CenterStatus];
           return (
             <Link
@@ -209,12 +234,18 @@ const MapView = () => {
           );
         })}
 
-        {!isLoading && filtered.length === 0 && (
+        {/* ── Empty state ── */}
+        {!isLoading && !isError && centers.length === 0 && (
           <div className="space-y-3 rounded-2xl border border-dashed border-border p-6 text-center">
-            <p className="text-sm text-muted-foreground">No hay puntos disponibles con esos filtros.</p>
-            <Link to="/app/community" className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-xs font-bold text-primary">
-              📡 Ver campañas móviles
-            </Link>
+            <p className="text-sm text-muted-foreground">
+              No encontramos centros con esos filtros.
+            </p>
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-xs font-bold text-primary"
+            >
+              Limpiar filtros
+            </button>
           </div>
         )}
 
