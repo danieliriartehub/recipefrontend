@@ -133,7 +133,7 @@ const Profile = () => {
     { icon: ShoppingBag, label: "Marketplace",             to: "/app/marketplace" },
     { icon: Calculator,  label: "Eco Simulator",           to: "/app/simulator" },
     { icon: Ticket,      label: "Mis cupones",             to: "/app/coupons" },
-    { icon: Trophy,      label: "Comunidad",               to: "/app/community" },
+    { icon: Trophy,      label: "Mi impacto",              to: "/app/impact" },
     { icon: Bell,        label: "Notificaciones",          to: "/app/notifications" },
     { icon: Shield,      label: "Privacidad y seguridad",  to: "#" },
     { icon: Settings,    label: "Configuración",            to: "#" },
@@ -218,8 +218,8 @@ const Profile = () => {
         <div className="rounded-3xl bg-card p-4 shadow-soft">
           <div className="mb-3 flex items-center justify-between">
             <p className="font-display text-sm font-bold">Badges desbloqueados</p>
-            <Link to="/app/community" className="text-xs font-semibold text-primary">
-              Ver todos →
+            <Link to="/app/impact" className="text-xs font-semibold text-primary">
+              Ver impacto →
             </Link>
           </div>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">

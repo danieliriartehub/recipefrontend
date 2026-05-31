@@ -17,7 +17,7 @@ import CenterDetail from "./pages/CenterDetail";
 import QrScreen from "./pages/QrScreen";
 import Simulator from "./pages/Simulator";
 import Impact from "./pages/Impact";
-import Community from "./pages/Community";
+import { Navigate } from "react-router-dom";
 import MarketplaceDetail from "./pages/MarketplaceDetail";
 import Coupons from "./pages/Coupons";
 import Profile from "./pages/Profile";
@@ -55,7 +55,7 @@ const App = () => (
             <Route path="/app/qr" element={<ProtectedRoute><QrScreen /></ProtectedRoute>} />
             <Route path="/app/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
             <Route path="/app/impact" element={<ProtectedRoute><Impact /></ProtectedRoute>} />
-            <Route path="/app/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+            <Route path="/app/community" element={<Navigate to="/app" replace />} />
             <Route path="/app/marketplace/:id" element={<ProtectedRoute><MarketplaceDetail /></ProtectedRoute>} />
             <Route path="/app/coupons" element={<ProtectedRoute><Coupons /></ProtectedRoute>} />
             <Route path="/app/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

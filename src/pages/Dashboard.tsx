@@ -549,37 +549,14 @@ const Dashboard = () => {
         </div>
       </section>
 
-      {/* ── Comunidad — condicional según si el usuario eligió universidad ── */}
+      {/* ── Reto USIL — próximamente ── */}
       <section className="px-5 pt-4 pb-2">
-        {profile?.university_id ? (
-          <Link
-            to="/app/community"
-            className="flex items-center gap-3 rounded-3xl border border-border bg-card p-4 transition-bounce hover:-translate-y-0.5"
-          >
-            <span className="text-3xl">🏆</span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-sm font-extrabold">Comunidad RECIPE</p>
-              <p className="text-xs text-muted-foreground">
-                Compite con otras universidades y sube en el ranking
-              </p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-          </Link>
-        ) : (
-          <Link
-            to="/app/profile"
-            className="flex items-center gap-3 rounded-3xl border border-primary/30 bg-primary/5 p-4 transition-bounce hover:-translate-y-0.5"
-          >
-            <span className="text-2xl">🎓</span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-sm font-extrabold">Completa tu perfil</p>
-              <p className="text-xs text-muted-foreground">
-                Elige tu universidad para unirte al ranking →
-              </p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-primary" />
-          </Link>
-        )}
+        <div className="rounded-2xl bg-card p-4 shadow-soft">
+          <p className="text-sm font-bold">🏆 Reto USIL</p>
+          <p className="text-xs text-muted-foreground">
+            Próximamente · Compite con tu facultad
+          </p>
+        </div>
       </section>
 
     </MobileShell>

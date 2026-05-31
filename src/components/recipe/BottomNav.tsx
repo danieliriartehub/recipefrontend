@@ -1,11 +1,10 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, Map, Users, ShoppingBag, User } from "lucide-react";
+import { Home, Map, ShoppingBag, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { to: "/app",             icon: Home,        label: "Inicio" },
   { to: "/app/map",         icon: Map,         label: "Mapa" },
-  { to: "/app/community",   icon: Users,       label: "Comunidad" },
   { to: "/app/marketplace", icon: ShoppingBag, label: "Market" },
   { to: "/app/profile",     icon: User,        label: "Perfil" },
 ];
@@ -15,7 +14,7 @@ export const BottomNav = () => {
   return (
     <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[440px] -translate-x-1/2">
       <div className="border-t border-border/60 bg-card/90 backdrop-blur-xl">
-        <ul className="grid grid-cols-5 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2">
+        <ul className="grid grid-cols-4 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2">
           {items.map(({ to, icon: Icon, label }) => {
             const active = pathname === to || (to !== "/app" && pathname.startsWith(to));
             return (
