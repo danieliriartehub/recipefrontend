@@ -25,12 +25,31 @@ export async function getCenterById(id: string) {
 
 export async function getWalletEntries(userId: string) {
   const { data, error } = await supabase
-    .from('wallet_entries')
+    .from('wallet_history')
     .select('*')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
   if (error) throw error
   return data
+}
+
+export async function getWalletBalance(userId: string) {
+  const { data, error } = await supabase
+    .from('user_current_balance')
+    .select('current_balance')
+    .eq('user_id', userId)
+    .single()
+  if (error) throw error
+  return data?.current_balance ?? 0
+}
+
+export async function softDeleteWalletEntry(id: string) {
+  const { error } = await supabase
+    .from('wallet_entries')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
 }
 
 // ─── RECICLAJES ───────────────────────────────────────────────────────────────

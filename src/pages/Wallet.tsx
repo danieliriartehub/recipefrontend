@@ -5,13 +5,13 @@ import { ArrowDownLeft, ArrowUpRight, Sparkles, TrendingUp } from "lucide-react"
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
-import { getWalletEntries } from "@/lib/api";
+import { getWalletEntries, getWalletBalance } from "@/lib/api";
 
 type Filter = "todos" | "earned" | "spent";
 
 const Wallet = () => {
   const [filter, setFilter] = useState<Filter>("todos");
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
 
   // ── Datos reales desde Supabase ──────────────────────────────────────────
   const { data: wallet = [], isLoading } = useQuery({
@@ -20,14 +20,21 @@ const Wallet = () => {
     enabled: !!user,
   });
 
-  const list = wallet.filter((w) =>
+  const { data: balance = 0 } = useQuery({
+    queryKey: ["wallet_balance", user?.id],
+    queryFn: () => getWalletBalance(user!.id),
+    enabled: !!user,
+  });
+
+  // type es 'IN' (ingreso) u 'OUT' (canje/gasto), amount siempre positivo
+  const list = (wallet as any[]).filter((w) =>
     filter === "todos" ||
-    w.type === filter ||
-    (filter === "earned" && w.type === "bonus")
+    (filter === "earned" && w.type === "IN") ||
+    (filter === "spent"  && w.type === "OUT")
   );
 
-  const earned = wallet.filter((w) => w.points > 0).reduce((s, w) => s + w.points, 0);
-  const spent = Math.abs(wallet.filter((w) => w.points < 0).reduce((s, w) => s + w.points, 0));
+  const earned = (wallet as any[]).filter((w) => w.type === "IN").reduce((s, w) => s + (w.amount ?? 0), 0);
+  const spent  = (wallet as any[]).filter((w) => w.type === "OUT").reduce((s, w) => s + (w.amount ?? 0), 0);
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -44,7 +51,7 @@ const Wallet = () => {
           <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
           <p className="text-[11px] uppercase tracking-wider opacity-80">Balance total</p>
           <p className="font-display text-5xl font-extrabold leading-none">
-            {(profile?.points ?? 0).toLocaleString()}
+            {(balance as number).toLocaleString()}
           </p>
           <p className="mt-1 text-sm opacity-85">EcoPuntos disponibles</p>
 
@@ -104,25 +111,24 @@ const Wallet = () => {
             <div key={i} className="h-16 animate-pulse rounded-2xl bg-muted" />
           ))}
 
-          {!isLoading && list.map((w) => {
-            const pos = w.points > 0;
+          {!isLoading && (list as any[]).map((w) => {
+            // type === 'IN' → ingreso (positivo), 'OUT' → gasto (negativo)
+            const pos = w.type === "IN";
+            const displayPoints = pos ? +(w.amount ?? 0) : -(w.amount ?? 0);
             return (
-              <div key={w.id} className="flex items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
+              <div key={w.transaction_id ?? w.id} className="flex items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-xl">
                   {w.emoji ?? (pos ? "♻️" : "🎁")}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold">{w.title}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">{w.detail}</p>
+                  <p className="truncate text-sm font-bold">{w.description ?? (pos ? "Reciclaje" : "Canje")}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">{w.source ?? ""}</p>
                   <p className="text-[10px] text-muted-foreground">{formatDate(w.created_at)}</p>
                 </div>
                 <div className="text-right">
                   <p className={`font-display text-base font-extrabold ${pos ? "text-primary" : "text-destructive"}`}>
-                    {pos ? "+" : ""}{w.points}
+                    {pos ? "+" : ""}{displayPoints}
                   </p>
-                  {w.type === "bonus" && (
-                    <p className="text-[9px] font-bold uppercase text-accent-foreground">Bono</p>
-                  )}
                 </div>
               </div>
             );
