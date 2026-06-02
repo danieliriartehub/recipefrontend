@@ -104,46 +104,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true
     let profileChannel: RealtimeChannel | null = null
 
-    // ── Lee el perfil con reintentos — tolera latencia en F5 ────────────────
-    // Supabase puede tardar en restaurar el token al recargar; hasta 2 reintentos
-    // de 800ms antes de cerrar sesión.
-    const fetchProfile = async (userId: string, retries = 2): Promise<void> => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single()
+    // ── Reintentos con backoff exponencial — tolera latencia en F5 ────────
+    const fetchProfile = async (userId: string, retries = 3) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single()
 
-        if (!mounted) return
+          if (!mounted) return
 
-        if (error) {
-          if (retries > 0) {
-            await new Promise(r => setTimeout(r, 800))
-            return fetchProfile(userId, retries - 1)
+          if (!error && data) {
+            setProfile(data as Profile)
+            return // éxito
           }
-          console.error('fetchProfile failed after retries:', error.message)
-          await supabase.auth.signOut()
-          if (mounted) { setSession(null); setUser(null); setProfile(null) }
-          return
-        }
 
-        if (data && mounted) setProfile(data as Profile)
-      } catch (e) {
-        if (retries > 0) {
-          await new Promise(r => setTimeout(r, 800))
-          return fetchProfile(userId, retries - 1)
+          console.warn(`fetchProfile intento ${i + 1} fallido:`, error?.message)
+          if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+
+        } catch (e) {
+          console.warn(`fetchProfile excepción intento ${i + 1}:`, e)
+          if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)))
         }
-        console.error('fetchProfile exception:', e)
-        if (mounted) {
-          await supabase.auth.signOut()
-          setSession(null); setUser(null); setProfile(null)
-        }
+      }
+
+      // Todos los intentos fallaron — NO cerrar sesión automáticamente
+      if (mounted) {
+        console.error('fetchProfile: todos los intentos fallaron')
+        setProfile(null)
       }
     }
 
     // ── Realtime: actualiza puntos sin recargar ────────────────────────────
     const subscribeToProfile = (userId: string) => {
+      if (profileChannel) supabase.removeChannel(profileChannel)
       profileChannel = supabase
         .channel(`profile:${userId}`)
         .on(
@@ -165,32 +161,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .subscribe()
     }
 
-    // ── ÚNICO punto de inicialización: onAuthStateChange ─────────────────
-    // Maneja sesión inicial (INITIAL_SESSION) y todos los cambios.
-    // Elimina la necesidad de getSession() que causaba doble llamada.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!mounted) return
+    // ── Paso 1: restaurar sesión existente con getSession() ───────────────
+    // No esperamos a onAuthStateChange para no depender del timing de Vercel.
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (!mounted) return
+      if (error) console.error('getSession error:', error)
 
+      if (session?.user) {
         setSession(session)
-        setUser(session?.user ?? null)
+        setUser(session.user)
+        await fetchProfile(session.user.id)
+        subscribeToProfile(session.user.id)
+      }
 
-        if (session?.user) {
-          await fetchProfile(session.user.id)
-          if (profileChannel) supabase.removeChannel(profileChannel)
-          subscribeToProfile(session.user.id)
-        } else {
-          setProfile(null)
-          if (profileChannel) { supabase.removeChannel(profileChannel); profileChannel = null }
+      // Loading se apaga después de getSession, pase lo que pase
+      if (mounted) setLoading(false)
+    })
+
+    // ── Paso 2: onAuthStateChange para cambios posteriores ────────────────
+    // INITIAL_SESSION ya lo manejó getSession arriba; evitamos doble fetch.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return
+        console.log('Auth event:', event)
+
+        if (event === 'SIGNED_IN') {
+          setSession(session)
+          setUser(session?.user ?? null)
+          if (session?.user) {
+            await fetchProfile(session.user.id)
+            subscribeToProfile(session.user.id)
+          }
+          if (mounted) setLoading(false)
         }
 
-        // loading se apaga SIEMPRE, pase lo que pase
-        if (mounted) setLoading(false)
+        if (event === 'SIGNED_OUT') {
+          setSession(null); setUser(null); setProfile(null)
+          if (profileChannel) { supabase.removeChannel(profileChannel); profileChannel = null }
+          if (mounted) setLoading(false)
+        }
+
+        if (event === 'TOKEN_REFRESHED') {
+          setSession(session)
+        }
       }
     )
 
-    // Timeout de seguridad: 10s máximo para no quedar bloqueado sin conexión
-    const timeout = setTimeout(() => { if (mounted) setLoading(false) }, 10000)
+    // ── Timeout de emergencia: 15s máximo ────────────────────────────────
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth timeout — forzando loading false')
+        setLoading(false)
+      }
+    }, 15000)
 
     return () => {
       mounted = false
