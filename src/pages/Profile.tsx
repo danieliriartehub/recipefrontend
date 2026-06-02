@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { useAuth } from "@/lib/auth";
-import { getUserWallet, getRecentWalletTransactions, updateProfile } from "@/lib/api";
+import { getUserBalance, getRecentTransactions, updateProfile } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,17 +50,17 @@ const Profile = () => {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
 
-  // ─── Saldo real desde user_wallet ─────────────────────────────────────────
-  const { data: balance = 0, isLoading: balanceLoading } = useQuery({
-    queryKey: ["wallet", user?.id],
-    queryFn:  () => getUserWallet(user!.id),
+  // ─── Saldo real desde user_balance (fuente única) ─────────────────────────
+  const { data: balanceData, isLoading: balanceLoading } = useQuery({
+    queryKey: ["balance", user?.id],
+    queryFn:  () => getUserBalance(user!.id),
     enabled:  !!user,
   });
 
-  // ─── Últimos 5 movimientos ────────────────────────────────────────────────
+  // ─── Últimas 5 transacciones desde wallet_history ────────────────────────
   const { data: transactions = [], isLoading: txLoading } = useQuery({
-    queryKey: ["wallet_transactions", user?.id],
-    queryFn:  () => getRecentWalletTransactions(user!.id),
+    queryKey: ["transactions", user?.id],
+    queryFn:  () => getRecentTransactions(user!.id),
     enabled:  !!user,
   });
 
@@ -197,7 +197,7 @@ const Profile = () => {
             {balanceLoading ? (
               <div className="h-4 w-28 animate-pulse rounded bg-white/20" />
             ) : (
-              <span>{(balance as number).toLocaleString()} EcoPuntos</span>
+              <span>{(balanceData?.current_balance ?? profile?.points ?? 0).toLocaleString()} EcoPuntos</span>
             )}
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/20">
@@ -339,7 +339,7 @@ const Profile = () => {
         </form>
       )}
 
-      {/* ── Historial reciente (wallet_transactions) ── */}
+      {/* ── Historial reciente (wallet_history vía getRecentTransactions) ── */}
       <section className="mx-5 mt-5 rounded-3xl bg-card p-5 shadow-soft">
         <p className="mb-3 font-display text-base font-bold">Historial reciente</p>
 

@@ -23,6 +23,44 @@ export async function getCenterById(id: string) {
 
 // ─── WALLET ───────────────────────────────────────────────────────────────────
 
+// Fuente única de balance — lee de la vista user_balance
+export async function getUserBalance(userId: string) {
+  const { data, error } = await supabase
+    .from('user_balance')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+  if (error) throw error
+  return data as {
+    user_id: string
+    current_balance: number
+    total_earned: number
+    total_spent: number
+    total_kg: number
+    co2_saved_kg: number
+    streak_days: number
+    total_recyclings: number
+  }
+}
+
+// Historial unificado — reemplaza getWalletEntries con limit opcional
+export async function getWalletHistory(userId: string, limit = 20) {
+  const { data, error } = await supabase
+    .from('wallet_history')
+    .select('*')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+// Últimas 5 transacciones para Profile
+export async function getRecentTransactions(userId: string) {
+  return getWalletHistory(userId, 5)
+}
+
 export async function getUserWallet(userId: string) {
   const { data, error } = await supabase
     .from('user_wallet')

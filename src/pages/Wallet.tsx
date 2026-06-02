@@ -5,14 +5,14 @@ import { ArrowDownLeft, ArrowUpRight, Sparkles, TrendingUp } from "lucide-react"
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
-import { getWalletEntries, getWalletBalance } from "@/lib/api";
+import { getWalletHistory } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
 type Filter = "todos" | "earned" | "spent";
 
 const Wallet = () => {
   const [filter, setFilter] = useState<Filter>("todos");
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
 
   // Suscripción Realtime — refresca el historial cuando entra un nuevo movimiento
@@ -29,8 +29,7 @@ const Wallet = () => {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['wallet', user.id] })
-          queryClient.invalidateQueries({ queryKey: ['wallet_balance', user.id] })
+          queryClient.invalidateQueries({ queryKey: ['wallet_history', user.id] })
         }
       )
       .subscribe()
@@ -39,16 +38,13 @@ const Wallet = () => {
 
   // ── Datos reales desde Supabase ──────────────────────────────────────────
   const { data: wallet = [], isLoading } = useQuery({
-    queryKey: ["wallet", user?.id],
-    queryFn: () => getWalletEntries(user!.id),
+    queryKey: ["wallet_history", user?.id],
+    queryFn: () => getWalletHistory(user!.id),
     enabled: !!user,
   });
 
-  const { data: balance = 0 } = useQuery({
-    queryKey: ["wallet_balance", user?.id],
-    queryFn: () => getWalletBalance(user!.id),
-    enabled: !!user,
-  });
+  // Balance desde profile (fuente única, actualizado por Realtime)
+  const balance = profile?.points ?? 0;
 
   // type es 'IN' (ingreso) u 'OUT' (canje/gasto), amount siempre positivo
   const list = (wallet as any[]).filter((w) =>

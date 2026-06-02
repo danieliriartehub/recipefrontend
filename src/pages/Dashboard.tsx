@@ -9,6 +9,7 @@ import {
   getWalletEntries,
   getMissionsWithProgress,
   getNotifications,
+  getUserBalance,
 } from "@/lib/api";
 import { getEcoTitle } from "@/data/mock";
 import {
@@ -128,6 +129,18 @@ const Dashboard = () => {
   const progress    = Math.min(100, Math.round((points / nextLevelAt) * 100));
   const title       = getEcoTitle(points);
 
+  // ── Fallback de balance para total_kg / co2_saved_kg si profile no los tiene aún ──
+  const { data: balanceFallback } = useQuery({
+    queryKey: ["balance", user?.id],
+    queryFn: () => getUserBalance(user!.id),
+    enabled: !!user && !profile?.total_kg,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  // Usa datos del profile (actualizados por Realtime) o el fallback
+  const totalKgFinal = profile?.total_kg ?? balanceFallback?.total_kg ?? 0;
+  const co2Final     = profile?.co2_saved_kg ?? balanceFallback?.co2_saved_kg ?? 0;
+
   // ── Queries a Supabase ────────────────────────────────────────────────────
   const { data: centers = [], isLoading: loadingCenters } = useQuery({
     queryKey: ["centers"],
@@ -213,7 +226,7 @@ const Dashboard = () => {
   const maxBar = Math.max(...weeklyBars.map((b) => b.value), 1);
 
   // Meta semanal: kilos reciclados en total (profile) vs. goal
-  const weeklyPct = Math.min(100, Math.round((totalKg / weeklyGoal) * 100));
+  const weeklyPct = Math.min(100, Math.round((totalKgFinal / weeklyGoal) * 100));
 
   // ── Banner IA ─────────────────────────────────────────────────────────────
   const topNotif = (notifications as any[])[0] ?? null;
@@ -527,7 +540,7 @@ const Dashboard = () => {
               <div>
                 <p className="text-xs text-muted-foreground">Meta semanal</p>
                 <p className="font-display text-xl font-extrabold">
-                  {totalKg.toFixed(1)}{" "}
+                  {totalKgFinal.toFixed(1)}{" "}
                   <span className="text-sm text-muted-foreground">/ {weeklyGoal} kg</span>
                 </p>
               </div>
