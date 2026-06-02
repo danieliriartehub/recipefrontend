@@ -101,26 +101,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    let mounted = true
     let profileChannel: RealtimeChannel | null = null
 
-    // Suscripción Realtime al perfil — actualiza puntos sin recargar
+    // ── Lee el perfil — cierra sesión si falla (no crea perfil aquí) ─────────
+    const loadProfile = async (userId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single()
+
+        if (!mounted) return
+
+        if (error) {
+          console.error('Error cargando perfil:', error.message)
+          if (error.code === 'PGRST116') {
+            // Perfil no encontrado — cerrar sesión para no quedar en blanco
+            await supabase.auth.signOut()
+            setSession(null); setUser(null); setProfile(null)
+          }
+          return
+        }
+
+        if (data) setProfile(data as Profile)
+      } catch (e) {
+        console.error('loadProfile exception:', e)
+        if (mounted) {
+          await supabase.auth.signOut()
+          setSession(null); setUser(null); setProfile(null)
+        }
+      }
+    }
+
+    // ── Realtime: actualiza puntos sin recargar ────────────────────────────
     const subscribeToProfile = (userId: string) => {
       profileChannel = supabase
         .channel(`profile:${userId}`)
         .on(
           'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `id=eq.${userId}`,
-          },
+          { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
           (payload) => {
-            // Usamos el updater funcional para leer el valor actual sin closure stale
             setProfile((prev) => {
-              const oldPoints = prev?.points ?? 0
-              const newPoints = (payload.new as Profile).points
-              const diff = newPoints - oldPoints
+              const diff = (payload.new as Profile).points - (prev?.points ?? 0)
               if (diff > 0) {
                 toast.success(`+${diff} EcoPuntos acreditados 🎉`, {
                   description: 'Tu entrega fue registrada exitosamente',
@@ -134,37 +158,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .subscribe()
     }
 
-    // Sesión activa al cargar
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user)
-        subscribeToProfile(session.user.id)
-      }
-      setLoading(false)
-    })
+    // ── ÚNICO punto de inicialización: onAuthStateChange ─────────────────
+    // Maneja sesión inicial (INITIAL_SESSION) y todos los cambios.
+    // Elimina la necesidad de getSession() que causaba doble llamada.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (!mounted) return
 
-    // Escucha cambios (login / logout / token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user)
-        // Re-suscribir si cambia el usuario (ej. login tras logout)
-        if (profileChannel) supabase.removeChannel(profileChannel)
-        subscribeToProfile(session.user.id)
-      } else {
-        setProfile(null)
-        if (profileChannel) {
-          supabase.removeChannel(profileChannel)
-          profileChannel = null
+        setSession(session)
+        setUser(session?.user ?? null)
+
+        if (session?.user) {
+          await loadProfile(session.user.id)
+          if (profileChannel) supabase.removeChannel(profileChannel)
+          subscribeToProfile(session.user.id)
+        } else {
+          setProfile(null)
+          if (profileChannel) { supabase.removeChannel(profileChannel); profileChannel = null }
         }
+
+        // loading se apaga SIEMPRE, pase lo que pase
+        if (mounted) setLoading(false)
       }
-    })
+    )
+
+    // Timeout de seguridad: 10s máximo para no quedar bloqueado sin conexión
+    const timeout = setTimeout(() => { if (mounted) setLoading(false) }, 10000)
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
+      clearTimeout(timeout)
       if (profileChannel) supabase.removeChannel(profileChannel)
     }
   }, [])
@@ -192,7 +216,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user)
+    if (!user) return
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+    if (data) setProfile(data as Profile)
   }
 
   return (
