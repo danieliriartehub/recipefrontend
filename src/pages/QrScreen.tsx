@@ -7,6 +7,7 @@ import { generateQrToken } from "@/lib/api";
 import { Download, RefreshCw, Share2, ShieldCheck, Wallet as WalletIcon } from "lucide-react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
+import { supabase } from "@/lib/supabase";
 
 const QrScreen = () => {
   const { user, profile } = useAuth();
@@ -16,8 +17,10 @@ const QrScreen = () => {
   const [token, setToken]           = useState<string>("");
   const [expiresAt, setExpiresAt]   = useState<Date | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(60);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState<string | null>(null);
+  const [deliveryReceived, setDeliveryReceived] = useState(false);
+  const [deliveryPoints, setDeliveryPoints]     = useState(0);
 
   // Redirige si no hay sesión
   useEffect(() => {
@@ -103,6 +106,33 @@ const QrScreen = () => {
     }
   };
 
+  // Suscripción Realtime — detecta cuando el validador registra la entrega
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel(`qr_delivery:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'recyclings',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          setDeliveryReceived(true)
+          setDeliveryPoints((payload.new as any).points_earned ?? 0)
+          // Después de 4s oculta el overlay y genera un QR nuevo
+          setTimeout(() => {
+            setDeliveryReceived(false)
+            refreshQr()
+          }, 4000)
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id, refreshQr])
+
   const fullName = profile?.full_name ?? "Usuario";
   const qrCode   = profile?.qr_code   ?? `RECIPE-${user?.id?.slice(0, 8) ?? ""}`;
   const points   = profile?.points    ?? 0;
@@ -131,7 +161,17 @@ const QrScreen = () => {
             </div>
 
             {/* ── QR image — responsive para pantallas desde 320px ── */}
-            <div className="mx-auto mt-5 flex items-center justify-center">
+            <div className="relative mx-auto mt-5 flex items-center justify-center">
+              {/* Overlay de confirmación cuando el validador registra la entrega */}
+              {deliveryReceived && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-3xl bg-primary/95 p-6 text-center text-white">
+                  <p className="text-5xl mb-3">🎉</p>
+                  <p className="text-xl font-extrabold">¡Entrega registrada!</p>
+                  <p className="mt-2 text-3xl font-extrabold">+{deliveryPoints}</p>
+                  <p className="text-sm opacity-80">EcoPuntos acreditados</p>
+                  <p className="mt-3 text-xs opacity-60">Generando nuevo QR...</p>
+                </div>
+              )}
               {loading ? (
                 <div className="h-[min(280px,calc(100vw-80px))] w-[min(280px,calc(100vw-80px))] animate-pulse rounded-3xl bg-muted" />
               ) : error ? (

@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { useAuth } from "@/lib/auth";
 import {
@@ -57,7 +58,32 @@ function toLocalDate(d: Date): string {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 const Dashboard = () => {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Suscripción Realtime — cuando el validador registra un reciclaje,
+  // refrescamos el perfil (puntos) y el historial de wallet en el dashboard
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel(`dashboard:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'recyclings',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          refreshProfile()
+          queryClient.invalidateQueries({ queryKey: ['wallet', user.id] })
+          queryClient.invalidateQueries({ queryKey: ['recyclings', user.id] })
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id, queryClient, refreshProfile])
 
   // ── Detección offline ─────────────────────────────────────────────────────
   const [isOnline, setIsOnline] = useState(navigator.onLine);

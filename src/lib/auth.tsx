@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { Session, User } from '@supabase/supabase-js'
+import { Session, User, RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -100,11 +101,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    let profileChannel: RealtimeChannel | null = null
+
+    // Suscripción Realtime al perfil — actualiza puntos sin recargar
+    const subscribeToProfile = (userId: string) => {
+      profileChannel = supabase
+        .channel(`profile:${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${userId}`,
+          },
+          (payload) => {
+            // Usamos el updater funcional para leer el valor actual sin closure stale
+            setProfile((prev) => {
+              const oldPoints = prev?.points ?? 0
+              const newPoints = (payload.new as Profile).points
+              const diff = newPoints - oldPoints
+              if (diff > 0) {
+                toast.success(`+${diff} EcoPuntos acreditados 🎉`, {
+                  description: 'Tu entrega fue registrada exitosamente',
+                  duration: 5000,
+                })
+              }
+              return payload.new as Profile
+            })
+          }
+        )
+        .subscribe()
+    }
+
     // Sesión activa al cargar
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user)
+      if (session?.user) {
+        fetchProfile(session.user)
+        subscribeToProfile(session.user.id)
+      }
       setLoading(false)
     })
 
@@ -112,11 +149,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user)
-      else setProfile(null)
+      if (session?.user) {
+        fetchProfile(session.user)
+        // Re-suscribir si cambia el usuario (ej. login tras logout)
+        if (profileChannel) supabase.removeChannel(profileChannel)
+        subscribeToProfile(session.user.id)
+      } else {
+        setProfile(null)
+        if (profileChannel) {
+          supabase.removeChannel(profileChannel)
+          profileChannel = null
+        }
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      if (profileChannel) supabase.removeChannel(profileChannel)
+    }
   }, [])
 
   const signIn = async (email: string, password: string) => {

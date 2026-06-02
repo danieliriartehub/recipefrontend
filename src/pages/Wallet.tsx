@@ -1,17 +1,41 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
 import { ArrowDownLeft, ArrowUpRight, Sparkles, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { getWalletEntries, getWalletBalance } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 type Filter = "todos" | "earned" | "spent";
 
 const Wallet = () => {
   const [filter, setFilter] = useState<Filter>("todos");
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Suscripción Realtime — refresca el historial cuando entra un nuevo movimiento
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel(`wallet:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'wallet_entries',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['wallet', user.id] })
+          queryClient.invalidateQueries({ queryKey: ['wallet_balance', user.id] })
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id, queryClient])
 
   // ── Datos reales desde Supabase ──────────────────────────────────────────
   const { data: wallet = [], isLoading } = useQuery({
