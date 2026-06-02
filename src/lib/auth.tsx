@@ -104,15 +104,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true
     let profileChannel: RealtimeChannel | null = null
 
-    // ── Reintentos con backoff exponencial — tolera latencia en F5 ────────
+    // ── fetchProfile con reintentos + creación automática ────────────────
     const fetchProfile = async (userId: string, retries = 3) => {
       for (let i = 0; i < retries; i++) {
         try {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single()
+          // Timeout por request de 8s para evitar cuelgues de red
+          const { data, error } = await Promise.race([
+            supabase.from('profiles').select('*').eq('id', userId).single(),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('request-timeout')), 8000)
+            ),
+          ])
 
           if (!mounted) return
 
@@ -121,16 +123,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return // éxito
           }
 
-          console.warn(`fetchProfile intento ${i + 1} fallido:`, error?.message)
+          // Perfil no existe (usuario nuevo sin trigger) → crearlo
+          if (error?.code === 'PGRST116') {
+            console.warn('Perfil no encontrado — creando uno nuevo…')
+            const { data: { user: authUser } } = await supabase.auth.getUser()
+            const fullName =
+              (authUser?.user_metadata?.full_name as string | undefined) ??
+              authUser?.email?.split('@')[0] ?? 'Usuario'
+            const initials = fullName.split(' ').filter(Boolean)
+              .map(s => s[0]).join('').slice(0, 2).toUpperCase() || 'U'
+
+            const { data: newProfile, error: insertErr } = await supabase
+              .from('profiles')
+              .insert({
+                id: userId, full_name: fullName, avatar_initials: initials,
+                points: 0, total_kg: 0, co2_saved_kg: 0,
+                streak_days: 0, level_index: 0, weekly_goal_kg: 5,
+              })
+              .select().single()
+
+            if (!insertErr && newProfile && mounted) {
+              setProfile(newProfile as Profile)
+              return
+            }
+            console.error('No se pudo crear el perfil:', insertErr?.message)
+          } else {
+            console.warn(`fetchProfile intento ${i + 1} fallido:`, error?.message)
+          }
+
           if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)))
 
         } catch (e) {
-          console.warn(`fetchProfile excepción intento ${i + 1}:`, e)
+          console.warn(`fetchProfile excepción intento ${i + 1}:`, (e as Error).message)
           if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)))
         }
       }
 
-      // Todos los intentos fallaron — NO cerrar sesión automáticamente
       if (mounted) {
         console.error('fetchProfile: todos los intentos fallaron')
         setProfile(null)
