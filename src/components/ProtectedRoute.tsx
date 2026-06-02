@@ -1,9 +1,10 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, profile, loading } = useAuth()
+  const navigate = useNavigate()
 
   // Spinner mientras Supabase responde (máx 10s por el timeout del AuthProvider)
   if (loading) {
@@ -17,21 +18,26 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // Sin sesión → login
   if (!session) return <Navigate to="/auth" replace />
 
-  // Con sesión pero sin perfil → algo falló (red, RLS, perfil no creado)
+  // Sesión activa pero perfil aún cargando (fetchProfile puede estar reintentando)
+  // Mostramos spinner en lugar de "Error" para evitar falsos positivos en F5
   if (!profile) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         <p className="text-sm text-muted-foreground">
-          Error cargando tu perfil. Por favor inicia sesión de nuevo.
+          Cargando tu perfil...
+        </p>
+        <p className="text-xs text-muted-foreground/60">
+          Si esto tarda mucho, intenta recargar la página.
         </p>
         <button
           onClick={async () => {
             await supabase.auth.signOut()
-            window.location.href = '/auth'
+            navigate('/auth', { replace: true })
           }}
-          className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-white"
+          className="mt-2 rounded-full bg-primary px-5 py-2 text-sm font-bold text-white"
         >
-          Volver al inicio
+          Iniciar sesión de nuevo
         </button>
       </div>
     )

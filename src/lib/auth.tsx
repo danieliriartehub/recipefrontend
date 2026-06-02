@@ -104,8 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true
     let profileChannel: RealtimeChannel | null = null
 
-    // ── Lee el perfil — cierra sesión si falla (no crea perfil aquí) ─────────
-    const loadProfile = async (userId: string) => {
+    // ── Lee el perfil con reintentos — tolera latencia en F5 ────────────────
+    // Supabase puede tardar en restaurar el token al recargar; hasta 2 reintentos
+    // de 800ms antes de cerrar sesión.
+    const fetchProfile = async (userId: string, retries = 2): Promise<void> => {
       try {
         const { data, error } = await supabase
           .from('profiles')
@@ -116,18 +118,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return
 
         if (error) {
-          console.error('Error cargando perfil:', error.message)
-          if (error.code === 'PGRST116') {
-            // Perfil no encontrado — cerrar sesión para no quedar en blanco
-            await supabase.auth.signOut()
-            setSession(null); setUser(null); setProfile(null)
+          if (retries > 0) {
+            await new Promise(r => setTimeout(r, 800))
+            return fetchProfile(userId, retries - 1)
           }
+          console.error('fetchProfile failed after retries:', error.message)
+          await supabase.auth.signOut()
+          if (mounted) { setSession(null); setUser(null); setProfile(null) }
           return
         }
 
-        if (data) setProfile(data as Profile)
+        if (data && mounted) setProfile(data as Profile)
       } catch (e) {
-        console.error('loadProfile exception:', e)
+        if (retries > 0) {
+          await new Promise(r => setTimeout(r, 800))
+          return fetchProfile(userId, retries - 1)
+        }
+        console.error('fetchProfile exception:', e)
         if (mounted) {
           await supabase.auth.signOut()
           setSession(null); setUser(null); setProfile(null)
@@ -169,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null)
 
         if (session?.user) {
-          await loadProfile(session.user.id)
+          await fetchProfile(session.user.id)
           if (profileChannel) supabase.removeChannel(profileChannel)
           subscribeToProfile(session.user.id)
         } else {
