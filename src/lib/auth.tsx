@@ -33,6 +33,31 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>
 }
 
+// ─── Caché de perfil en sessionStorage ───────────────────────────────────────
+// Permite que F5 muestre el perfil en <100ms mientras Supabase se despierta.
+
+const CACHE_KEY = 'recipe:profile'
+
+function getCachedProfile(userId: string): Profile | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const p = JSON.parse(raw) as Profile & { _at?: number }
+    if (p?.id !== userId) return null
+    // Caché válido por 10 minutos
+    if (p._at && Date.now() - p._at > 10 * 60 * 1000) return null
+    return p
+  } catch { return null }
+}
+
+function setCachedProfile(p: Profile) {
+  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ...p, _at: Date.now() })) } catch {}
+}
+
+function clearCachedProfile() {
+  try { sessionStorage.removeItem(CACHE_KEY) } catch {}
+}
+
 // ─── Contexto ─────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -104,65 +129,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true
     let profileChannel: RealtimeChannel | null = null
 
-    // ── fetchProfile con reintentos + creación automática ────────────────
+    // Mutex — evita que getSession y SIGNED_IN lancen fetchProfile en paralelo
+    let fetchingProfile = false
+
+    // ── fetchProfile: caché instantánea + refresco en background ─────────
     const fetchProfile = async (userId: string, retries = 3) => {
-      for (let i = 0; i < retries; i++) {
-        try {
-          // Timeout por request de 8s para evitar cuelgues de red
-          const { data, error } = await Promise.race([
-            supabase.from('profiles').select('*').eq('id', userId).single(),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('request-timeout')), 8000)
-            ),
-          ])
+      // 1. Servir desde sessionStorage inmediatamente (F5 = <100ms)
+      const cached = getCachedProfile(userId)
+      if (cached && mounted) {
+        setProfile(cached)
+        setLoading(false)
+        // Refrescar en background sin bloquear
+        refreshBackground(userId)
+        return
+      }
 
-          if (!mounted) return
+      // 2. Sin caché → fetch completo con reintentos
+      if (fetchingProfile) return
+      fetchingProfile = true
+      try {
+        for (let i = 0; i < retries; i++) {
+          try {
+            const { data, error } = await Promise.race([
+              supabase.from('profiles').select('*').eq('id', userId).single(),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('request-timeout')), 10000)
+              ),
+            ])
 
-          if (!error && data) {
-            setProfile(data as Profile)
-            return // éxito
-          }
+            if (!mounted) return
 
-          // Perfil no existe (usuario nuevo sin trigger) → crearlo
-          if (error?.code === 'PGRST116') {
-            console.warn('Perfil no encontrado — creando uno nuevo…')
-            const { data: { user: authUser } } = await supabase.auth.getUser()
-            const fullName =
-              (authUser?.user_metadata?.full_name as string | undefined) ??
-              authUser?.email?.split('@')[0] ?? 'Usuario'
-            const initials = fullName.split(' ').filter(Boolean)
-              .map(s => s[0]).join('').slice(0, 2).toUpperCase() || 'U'
-
-            const { data: newProfile, error: insertErr } = await supabase
-              .from('profiles')
-              .insert({
-                id: userId, full_name: fullName, avatar_initials: initials,
-                points: 0, total_kg: 0, co2_saved_kg: 0,
-                streak_days: 0, level_index: 0, weekly_goal_kg: 5,
-              })
-              .select().single()
-
-            if (!insertErr && newProfile && mounted) {
-              setProfile(newProfile as Profile)
+            if (!error && data) {
+              setCachedProfile(data as Profile)
+              setProfile(data as Profile)
               return
             }
-            console.error('No se pudo crear el perfil:', insertErr?.message)
-          } else {
-            console.warn(`fetchProfile intento ${i + 1} fallido:`, error?.message)
+
+            // Perfil no existe → crearlo
+            if (error?.code === 'PGRST116') {
+              console.warn('Perfil no encontrado — creando uno nuevo…')
+              const { data: { user: authUser } } = await supabase.auth.getUser()
+              const fullName =
+                (authUser?.user_metadata?.full_name as string | undefined) ??
+                authUser?.email?.split('@')[0] ?? 'Usuario'
+              const initials = fullName.split(' ').filter(Boolean)
+                .map(s => s[0]).join('').slice(0, 2).toUpperCase() || 'U'
+              const { data: newProfile, error: insertErr } = await supabase
+                .from('profiles')
+                .insert({ id: userId, full_name: fullName, avatar_initials: initials,
+                  points: 0, total_kg: 0, co2_saved_kg: 0,
+                  streak_days: 0, level_index: 0, weekly_goal_kg: 5 })
+                .select().single()
+              if (!insertErr && newProfile && mounted) {
+                setCachedProfile(newProfile as Profile)
+                setProfile(newProfile as Profile)
+                return
+              }
+            } else {
+              console.warn(`fetchProfile intento ${i + 1} fallido:`, error?.message)
+            }
+
+            if (i < retries - 1) await new Promise(r => setTimeout(r, 1500 * (i + 1)))
+          } catch (e) {
+            console.warn(`fetchProfile excepción intento ${i + 1}:`, (e as Error).message)
+            if (i < retries - 1) await new Promise(r => setTimeout(r, 1500 * (i + 1)))
           }
-
-          if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)))
-
-        } catch (e) {
-          console.warn(`fetchProfile excepción intento ${i + 1}:`, (e as Error).message)
-          if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)))
         }
+        if (mounted) setProfile(null)
+      } finally {
+        fetchingProfile = false
       }
+    }
 
-      if (mounted) {
-        console.error('fetchProfile: todos los intentos fallaron')
-        setProfile(null)
-      }
+    // Refresco silencioso en background (cuando ya hay caché)
+    const refreshBackground = async (userId: string) => {
+      if (fetchingProfile) return
+      fetchingProfile = true
+      try {
+        const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+        if (data && mounted) { setCachedProfile(data as Profile); setProfile(data as Profile) }
+      } catch {} finally { fetchingProfile = false }
     }
 
     // ── Realtime: actualiza puntos sin recargar ────────────────────────────
@@ -224,6 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (event === 'SIGNED_OUT') {
+          clearCachedProfile()
           setSession(null); setUser(null); setProfile(null)
           if (profileChannel) { supabase.removeChannel(profileChannel); profileChannel = null }
           if (mounted) setLoading(false)
@@ -235,13 +282,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     )
 
-    // ── Timeout de emergencia: 15s máximo ────────────────────────────────
+    // ── Timeout de emergencia: 8s (con caché la mayoría carga en <100ms) ──
     const timeout = setTimeout(() => {
       if (mounted) {
         console.warn('Auth timeout — forzando loading false')
         setLoading(false)
       }
-    }, 15000)
+    }, 8000)
 
     return () => {
       mounted = false
@@ -280,7 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('*')
       .eq('id', user.id)
       .single()
-    if (data) setProfile(data as Profile)
+    if (data) { setCachedProfile(data as Profile); setProfile(data as Profile) }
   }
 
   return (
