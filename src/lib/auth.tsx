@@ -4,6 +4,14 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { backendApi, type LoginResponse, type RegisterResponse } from '@/lib/backendApi'
 
+// ─── Helper: token de la sesión activa ────────────────────────────────────────
+async function getSessionToken(): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ?? null
+  } catch { return null }
+}
+
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 export interface Profile {
@@ -69,62 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  /**
-   * Busca el perfil del usuario. Si no existe (usuario nuevo), lo crea
-   * automáticamente con valores por defecto.
-   */
-  const fetchProfile = async (authUser: User) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', authUser.id)
-      .single()
-
-    if (!error && data) {
-      setProfile(data as Profile)
-      return
-    }
-
-    // PGRST116 = cero filas devueltas → perfil aún no existe → lo creamos
-    if (error?.code === 'PGRST116' || error?.message?.includes('0 rows')) {
-      const fullName =
-        (authUser.user_metadata?.full_name as string | undefined) ??
-        authUser.email?.split('@')[0] ??
-        'Usuario'
-
-      const initials = fullName
-        .split(' ')
-        .filter(Boolean)
-        .map((s) => s[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase() || 'U'
-
-      const { data: newProfile, error: insertErr } = await supabase
-        .from('profiles')
-        .insert({
-          id: authUser.id,
-          full_name: fullName,
-          avatar_initials: initials,
-          points: 0,
-          total_kg: 0,
-          co2_saved_kg: 0,
-          streak_days: 0,
-          level_index: 0,
-          weekly_goal_kg: 5,
-        })
-        .select()
-        .single()
-
-      if (insertErr) {
-        console.error('[RECIPE] Error al crear perfil (verifica RLS en tabla profiles):', insertErr)
-      } else if (newProfile) {
-        setProfile(newProfile as Profile)
-      }
-    } else if (error) {
-      console.error('[RECIPE] Error al leer perfil:', error)
-    }
-  }
+  // (fetchProfile externo eliminado — toda la lógica está en el useEffect interno)
 
   useEffect(() => {
     let mounted = true
@@ -133,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Mutex — evita que getSession y SIGNED_IN lancen fetchProfile en paralelo
     let fetchingProfile = false
 
-    // ── fetchProfile: caché instantánea + refresco en background ─────────
+    // ── fetchProfile via backend: caché instantánea + refresco en background ──
     const fetchProfile = async (userId: string, retries = 3) => {
       // 1. Servir desde sessionStorage inmediatamente (F5 = <100ms)
       const cached = getCachedProfile(userId)
@@ -145,14 +98,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // 2. Sin caché → fetch completo con reintentos
+      // 2. Sin caché → fetch completo con reintentos via backend
       if (fetchingProfile) return
       fetchingProfile = true
       try {
         for (let i = 0; i < retries; i++) {
           try {
-            const { data, error } = await Promise.race([
-              supabase.from('profiles').select('*').eq('id', userId).single(),
+            const token = await getSessionToken()
+            if (!token) throw new Error('Sin token de sesión')
+
+            const data = await Promise.race([
+              backendApi.withToken(token).get<Profile>('/api/v1/profiles/me'),
               new Promise<never>((_, reject) =>
                 setTimeout(() => reject(new Error('request-timeout')), 10000)
               ),
@@ -160,39 +116,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (!mounted) return
 
-            if (!error && data) {
-              setCachedProfile(data as Profile)
-              setProfile(data as Profile)
+            if (data) {
+              setCachedProfile(data)
+              setProfile(data)
               return
-            }
-
-            // Perfil no existe → crearlo
-            if (error?.code === 'PGRST116') {
-              console.warn('Perfil no encontrado — creando uno nuevo…')
-              const { data: { user: authUser } } = await supabase.auth.getUser()
-              const fullName =
-                (authUser?.user_metadata?.full_name as string | undefined) ??
-                authUser?.email?.split('@')[0] ?? 'Usuario'
-              const initials = fullName.split(' ').filter(Boolean)
-                .map(s => s[0]).join('').slice(0, 2).toUpperCase() || 'U'
-              const { data: newProfile, error: insertErr } = await supabase
-                .from('profiles')
-                .insert({ id: userId, full_name: fullName, avatar_initials: initials,
-                  points: 0, total_kg: 0, co2_saved_kg: 0,
-                  streak_days: 0, level_index: 0, weekly_goal_kg: 5 })
-                .select().single()
-              if (!insertErr && newProfile && mounted) {
-                setCachedProfile(newProfile as Profile)
-                setProfile(newProfile as Profile)
-                return
-              }
-            } else {
-              console.warn(`fetchProfile intento ${i + 1} fallido:`, error?.message)
             }
 
             if (i < retries - 1) await new Promise(r => setTimeout(r, 1500 * (i + 1)))
           } catch (e) {
-            console.warn(`fetchProfile excepción intento ${i + 1}:`, (e as Error).message)
+            console.warn(`fetchProfile intento ${i + 1} fallido:`, (e as Error).message)
             if (i < retries - 1) await new Promise(r => setTimeout(r, 1500 * (i + 1)))
           }
         }
@@ -203,12 +135,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Refresco silencioso en background (cuando ya hay caché)
-    const refreshBackground = async (userId: string) => {
+    const refreshBackground = async (_userId: string) => {
       if (fetchingProfile) return
       fetchingProfile = true
       try {
-        const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-        if (data && mounted) { setCachedProfile(data as Profile); setProfile(data as Profile) }
+        const token = await getSessionToken()
+        if (!token) return
+        const data = await backendApi.withToken(token).get<Profile>('/api/v1/profiles/me')
+        if (data && mounted) { setCachedProfile(data); setProfile(data) }
       } catch {} finally { fetchingProfile = false }
     }
 
@@ -362,12 +296,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (!user) return
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-    if (data) { setCachedProfile(data as Profile); setProfile(data as Profile) }
+    try {
+      const token = await getSessionToken()
+      if (!token) return
+      const data = await backendApi.withToken(token).get<Profile>('/api/v1/profiles/me')
+      if (data) { setCachedProfile(data); setProfile(data) }
+    } catch (e) {
+      console.warn('[RECIPE] refreshProfile falló:', (e as Error).message)
+    }
   }
 
   return (

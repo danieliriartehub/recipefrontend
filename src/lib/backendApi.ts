@@ -66,9 +66,21 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return body as T
 }
 
-// ─── Métodos exportados ───────────────────────────────────────────────────────
+// ─── Helpers internos ────────────────────────────────────────────────────────
+
+function authHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` }
+}
+
+// ─── Cliente exportado ───────────────────────────────────────────────────────
 
 export const backendApi = {
+  // ── Sin autenticación ────────────────────────────────────────────────────
+
+  /** GET público (sin token) */
+  get: <T>(path: string): Promise<T> =>
+    apiFetch<T>(path),
+
   /** POST sin token (login, register, forgot-password) */
   post: <T>(path: string, body?: unknown): Promise<T> =>
     apiFetch<T>(path, {
@@ -76,17 +88,52 @@ export const backendApi = {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }),
 
-  /** POST con Bearer token (logout) */
+  // ── Con Bearer token ─────────────────────────────────────────────────────
+
+  /** GET con Bearer token */
+  getAuth: <T>(path: string, token: string): Promise<T> =>
+    apiFetch<T>(path, {
+      headers: authHeaders(token),
+    }),
+
+  /** POST con Bearer token */
   postAuth: <T>(path: string, token: string, body?: unknown): Promise<T> =>
     apiFetch<T>(path, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: authHeaders(token),
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }),
 
-  /** GET con Bearer token (me) */
-  getAuth: <T>(path: string, token: string): Promise<T> =>
+  /** PATCH con Bearer token */
+  patchAuth: <T>(path: string, token: string, body?: unknown): Promise<T> =>
     apiFetch<T>(path, {
-      headers: { Authorization: `Bearer ${token}` },
+      method: 'PATCH',
+      headers: authHeaders(token),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     }),
+
+  /** DELETE con Bearer token */
+  deleteAuth: <T>(path: string, token: string): Promise<T> =>
+    apiFetch<T>(path, {
+      method: 'DELETE',
+      headers: authHeaders(token),
+    }),
+
+  /**
+   * Devuelve un sub-cliente con el token ya ligado, para evitar pasarlo
+   * manualmente en cada llamada dentro de api.ts.
+   *
+   * Uso:
+   *   const api = backendApi.withToken(token)
+   *   await api.get('/api/v1/wallet/balance')
+   *   await api.post('/api/v1/recyclings/', body)
+   */
+  withToken(token: string) {
+    return {
+      get: <T>(path: string) => backendApi.getAuth<T>(path, token),
+      post: <T>(path: string, body?: unknown) => backendApi.postAuth<T>(path, token, body),
+      patch: <T>(path: string, body?: unknown) => backendApi.patchAuth<T>(path, token, body),
+      delete: <T>(path: string) => backendApi.deleteAuth<T>(path, token),
+    }
+  },
 }
