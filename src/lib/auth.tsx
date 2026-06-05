@@ -43,7 +43,6 @@ interface AuthContextType {
 }
 
 // ─── Caché de perfil en sessionStorage ───────────────────────────────────────
-// Permite que F5 muestre el perfil en <100ms mientras Supabase se despierta.
 
 const CACHE_KEY = 'recipe:profile'
 
@@ -77,27 +76,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // (fetchProfile externo eliminado — toda la lógica está en el useEffect interno)
-
   useEffect(() => {
     let mounted = true
     let profileChannel: RealtimeChannel | null = null
 
-    // Mutex — evita que getSession y SIGNED_IN lancen fetchProfile en paralelo
+    // Mutex — evita que INITIAL_SESSION y SIGNED_IN lancen fetchProfile en paralelo
     let fetchingProfile = false
 
-    // ── Fallback: perfil directo desde Supabase ──────────────────────────
-    // Se usa si el backend no está disponible (VITE_API_URL no configurada, etc.)
+    // ── Fallback: perfil directo desde Supabase ────────────────────────────
+    // Se usa si el backend no está disponible. También crea el perfil si no existe.
     const fetchProfileFromSupabase = async (userId: string): Promise<Profile | null> => {
       try {
         const { data, error } = await supabase
           .from('profiles').select('*').eq('id', userId).single()
+
         if (!error && data) return data as Profile
+
+        // Perfil no existe (PGRST116 = 0 rows) → crearlo automáticamente
+        if (error?.code === 'PGRST116') {
+          const { data: { user: authUser } } = await supabase.auth.getUser()
+          const fullName = (authUser?.user_metadata?.full_name as string | undefined) ??
+            authUser?.email?.split('@')[0] ?? 'Usuario'
+          const initials = fullName.split(' ').filter(Boolean)
+            .map((s: string) => s[0]).join('').slice(0, 2).toUpperCase() || 'U'
+
+          const { data: newProfile } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId, full_name: fullName, avatar_initials: initials,
+              points: 0, total_kg: 0, co2_saved_kg: 0,
+              streak_days: 0, level_index: 0, weekly_goal_kg: 5,
+            })
+            .select().single()
+
+          if (newProfile) return newProfile as Profile
+        }
       } catch {}
       return null
     }
 
-    // ── fetchProfile: intenta backend (5s timeout), cae en Supabase si falla ──
+    // ── fetchProfile: backend (5s timeout) → Supabase (con auto-creación) ──
     const fetchProfile = async (userId: string) => {
       // 1. Caché instantánea → render en <100ms
       const cached = getCachedProfile(userId)
@@ -110,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (fetchingProfile) return
       fetchingProfile = true
       try {
-        // 2. Intentar backend con timeout corto (1 intento)
+        // 2. Intentar backend (1 intento, 5s timeout)
         try {
           const token = await getSessionToken()
           if (token) {
@@ -130,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('[RECIPE] Backend no disponible, usando Supabase:', (backendErr as Error).message)
         }
 
-        // 3. Fallback: Supabase directo
+        // 3. Fallback: Supabase directo (auto-crea perfil si no existe)
         if (!mounted) return
         const fallback = await fetchProfileFromSupabase(userId)
         if (fallback && mounted) {
@@ -157,7 +175,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (data && mounted) { setCachedProfile(data); setProfile(data); return }
           } catch {}
         }
-        // Fallback silencioso a Supabase
         const fallback = await fetchProfileFromSupabase(userId)
         if (fallback && mounted) { setCachedProfile(fallback); setProfile(fallback) }
       } catch {} finally { fetchingProfile = false }
@@ -187,39 +204,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .subscribe()
     }
 
-    // ── Paso 1: restaurar sesión existente con getSession() ───────────────
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      if (!mounted) return
-      if (error) console.error('getSession error:', error)
-
-      if (session?.user) {
-        setSession(session)
-        setUser(session.user)
-        subscribeToProfile(session.user.id)
-        // fire-and-forget: NO bloqueamos; perfil llega en background
-        fetchProfile(session.user.id)
+    // ── Lógica compartida: procesar una sesión recibida ───────────────────
+    const handleSession = (sess: Session | null) => {
+      setSession(sess)
+      setUser(sess?.user ?? null)
+      if (mounted) setLoading(false)   // ← loading se apaga YA, sin esperar perfil
+      if (sess?.user) {
+        fetchProfile(sess.user.id)     // fire-and-forget
+        subscribeToProfile(sess.user.id)
       }
+    }
 
-      // Loading se apaga en cuanto sabemos si hay sesión o no
-      if (mounted) setLoading(false)
-    })
+    // ── PASO 1: onAuthStateChange — se registra PRIMERO ──────────────────
+    //
+    // IMPORTANTE: 'INITIAL_SESSION' se dispara INMEDIATAMENTE (< 1ms)
+    // con la sesión guardada en localStorage, sin hacer ninguna llamada
+    // de red. Es la fuente de verdad más rápida en el arranque.
+    //
+    // Antes solo manejábamos SIGNED_IN → si había tokens guardados,
+    // INITIAL_SESSION se ignoraba → session quedaba null → timeout de 8s.
+    //
+    let authInitialized = false
 
-    // ── Paso 2: onAuthStateChange para cambios posteriores ────────────────
-    // INITIAL_SESSION ya lo manejó getSession arriba; evitamos doble fetch.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, sess) => {
         if (!mounted) return
         console.log('Auth event:', event)
 
+        if (event === 'INITIAL_SESSION') {
+          authInitialized = true
+          handleSession(sess)
+          return
+        }
+
         if (event === 'SIGNED_IN') {
-          setSession(session)
-          setUser(session?.user ?? null)
-          // Apagamos loading inmediatamente — no esperamos el perfil
-          if (mounted) setLoading(false)
-          if (session?.user) {
-            fetchProfile(session.user.id) // fire-and-forget
-            subscribeToProfile(session.user.id)
-          }
+          handleSession(sess)
+          return
         }
 
         if (event === 'SIGNED_OUT') {
@@ -227,15 +247,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(null); setUser(null); setProfile(null)
           if (profileChannel) { supabase.removeChannel(profileChannel); profileChannel = null }
           if (mounted) setLoading(false)
+          return
         }
 
         if (event === 'TOKEN_REFRESHED') {
-          setSession(session)
+          setSession(sess)
         }
       }
     )
 
-    // ── Timeout de emergencia: 8s (con caché la mayoría carga en <100ms) ──
+    // ── PASO 2: getSession() solo como red de seguridad ───────────────────
+    // Si por algún motivo INITIAL_SESSION no disparó (caso extremo),
+    // getSession() cierra el gap.
+    supabase.auth.getSession().then(({ data: { session: sess }, error }) => {
+      if (!mounted || authInitialized) return   // INITIAL_SESSION ya lo resolvió
+      if (error) console.error('[RECIPE] getSession error:', error)
+      handleSession(sess)
+    })
+
+    // ── Timeout de emergencia: 8s ──────────────────────────────────────────
     const timeout = setTimeout(() => {
       if (mounted) {
         console.warn('Auth timeout — forzando loading false')
@@ -259,6 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         { email, password }
       )
       // El backend devuelve tokens Supabase → sincronizamos el cliente local
+      // Esto dispara SIGNED_IN en onAuthStateChange → handleSession → setSession/loading
       await supabase.auth.setSession({
         access_token: data.access_token,
         refresh_token: data.refresh_token,
