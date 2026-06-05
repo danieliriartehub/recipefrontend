@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Sincronizar el cliente Supabase con el nuevo token (solo en memoria)
       await supabase.auth.setSession({
         access_token,
-        refresh_token: '', // El refresh real está en la cookie; Supabase no lo necesita aquí
+        refresh_token: 'dummy-refresh-token', // requerido por supabase-js, pero el real está en la cookie
       })
 
       accessTokenRef.current = access_token
@@ -319,10 +319,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // El backend devuelve { session: { access_token, expires_in, user } }
       // El refresh_token fue a la cookie HttpOnly automáticamente.
       // Sincronizamos el cliente local de Supabase con el access_token en memoria.
-      const { data: { session: sess } } = await supabase.auth.setSession({
+      const { data: { session: sess }, error } = await supabase.auth.setSession({
         access_token: data.session.access_token,
-        refresh_token: '', // El refresco real lo hace /api/v1/auth/refresh
+        refresh_token: 'dummy-refresh-token', 
       })
+      
+      if (error) console.error('[RECIPE] Error seteando sesión en Supabase:', error)
 
       if (sess) await activateSession(sess)
       return { error: null }
@@ -342,7 +344,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!data.needs_confirmation && data.session) {
         const { data: { session: sess } } = await supabase.auth.setSession({
           access_token: data.session.access_token,
-          refresh_token: '',
+          refresh_token: 'dummy-refresh-token',
         })
         if (sess) await activateSession(sess)
       }
