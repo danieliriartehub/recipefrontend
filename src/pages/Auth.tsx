@@ -13,7 +13,7 @@ import { backendApi } from "@/lib/backendApi";
 // ─── Validaciones ─────────────────────────────────────────────────────────────
 const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
-// ─── Traducción de errores de Supabase ────────────────────────────────────────
+// ─── Traducción de errores ────────────────────────────────────────────────────
 function traducirError(msg: string): string {
   if (msg.includes("Invalid login credentials"))    return "Correo o contraseña incorrectos.";
   if (msg.includes("already registered"))           return "Este correo ya tiene una cuenta. Inicia sesión.";
@@ -38,7 +38,9 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [forgotSent, setForgotSent]   = useState(false);
 
-  const isNewUserRef = useRef(false);
+  const isNewUserRef    = useRef(false);
+  const submittingRef   = useRef(false);   // previene doble submit por click rápido
+
   const { signIn, signUp, session } = useAuth();
   const nav = useNavigate();
 
@@ -48,15 +50,12 @@ const Auth = () => {
     nav("/app", { replace: true });
   }, [session, nav]);
 
-  // Countdown de bloqueo (decrementa cada segundo, resetea contador al llegar a 0)
+  // Countdown de bloqueo
   useEffect(() => {
     if (countdown <= 0) return;
     const timer = setInterval(() => {
       setCountdown((c) => {
-        if (c <= 1) {
-          setLoginAttempts(0);
-          return 0;
-        }
+        if (c <= 1) { setLoginAttempts(0); return 0; }
         return c - 1;
       });
     }, 1000);
@@ -74,7 +73,6 @@ const Auth = () => {
   };
 
   const handlePasswordChange = (v: string) => {
-    // Sanitización anti-inyección: elimina caracteres peligrosos antes de guardar
     const sanitized = v.replace(/[<>'"`;\\]/g, "");
     setPassword(sanitized);
     if (sanitized && sanitized.length < 8) {
@@ -84,16 +82,13 @@ const Auth = () => {
     }
   };
 
-  // ── Recuperar contraseña → backend /api/v1/auth/forgot-password ─────────
+  // ── Recuperar contraseña ──────────────────────────────────────────────────
   const handleForgotPassword = async () => {
-    if (!email) {
-      toast.error("Ingresa tu correo primero");
-      return;
-    }
+    if (!email) { toast.error("Ingresa tu correo primero"); return; }
     try {
-      await backendApi.post('/api/v1/auth/forgot-password', {
+      await backendApi.post("/api/v1/auth/forgot-password", {
         email,
-        redirect_to: window.location.origin + '/auth?mode=reset',
+        redirect_to: window.location.origin + "/auth?mode=reset",
       });
       setForgotSent(true);
       toast.success("📧 Correo enviado", { description: "Revisa tu bandeja de entrada." });
@@ -107,7 +102,9 @@ const Auth = () => {
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLocked || loading) return;
+    // Ref-based guard: evita doble submit aunque React no haya re-renderizado aún
+    if (isLocked || submittingRef.current) return;
+    submittingRef.current = true;
     setErrors((prev) => ({ ...prev, general: undefined }));
     setLoading(true);
 
@@ -128,14 +125,14 @@ const Auth = () => {
         } else {
           isNewUserRef.current = true;
           if (needsConfirmation) {
-            // Supabase requiere confirmar correo → mostramos pantalla de aviso
             setEmailSent(true);
           }
-          // Si auto-confirmado → onAuthStateChange dispara → session cambia → redirect a /app
+          // Si auto-confirmado → onAuthStateChange dispara SIGNED_IN → redirect
         }
       }
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -165,7 +162,6 @@ const Auth = () => {
     );
   }
 
-  // Botón deshabilitado si: cargando, bloqueado, hay errores de validación o campos vacíos
   const submitDisabled =
     loading ||
     isLocked ||
@@ -184,7 +180,6 @@ const Auth = () => {
       />
 
       <div className="px-5 pt-2">
-        {/* Botón volver manual — nav(-1) no funciona si no hay historial previo */}
         <button
           onClick={() => nav("/", { replace: false })}
           className="mb-4 flex items-center gap-2 rounded-full bg-muted px-3 py-2 text-sm font-semibold transition-smooth hover:bg-muted/70"
@@ -192,6 +187,7 @@ const Auth = () => {
           <ArrowLeft className="h-4 w-4" />
           Volver al inicio
         </button>
+
         {/* Toggle login / signup */}
         <div className="mb-5 grid grid-cols-2 rounded-2xl bg-muted p-1">
           {(["login", "signup"] as const).map((t) => (
@@ -209,14 +205,14 @@ const Auth = () => {
           ))}
         </div>
 
-        {/* Banner de bloqueo por intentos */}
+        {/* Banner de bloqueo */}
         {isLocked && (
           <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
             🔒 Demasiados intentos. Espera {countdown}s antes de intentar de nuevo.
           </div>
         )}
 
-        {/* Banner error general (solo si no está bloqueado) */}
+        {/* Banner error general */}
         {!isLocked && errors.general && (
           <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {errors.general}
