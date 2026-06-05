@@ -86,48 +86,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Mutex — evita que getSession y SIGNED_IN lancen fetchProfile en paralelo
     let fetchingProfile = false
 
-    // ── fetchProfile via backend: caché instantánea + refresco en background ──
-    const fetchProfile = async (userId: string, retries = 3) => {
-      // 1. Servir desde sessionStorage inmediatamente (F5 = <100ms)
+    // ── Fallback: perfil directo desde Supabase ──────────────────────────
+    // Se usa si el backend no está disponible (VITE_API_URL no configurada, etc.)
+    const fetchProfileFromSupabase = async (userId: string): Promise<Profile | null> => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles').select('*').eq('id', userId).single()
+        if (!error && data) return data as Profile
+      } catch {}
+      return null
+    }
+
+    // ── fetchProfile: intenta backend (5s timeout), cae en Supabase si falla ──
+    const fetchProfile = async (userId: string) => {
+      // 1. Caché instantánea → render en <100ms
       const cached = getCachedProfile(userId)
       if (cached && mounted) {
         setProfile(cached)
-        setLoading(false)
-        // Refrescar en background sin bloquear
         refreshBackground(userId)
         return
       }
 
-      // 2. Sin caché → fetch completo con reintentos via backend
       if (fetchingProfile) return
       fetchingProfile = true
       try {
-        for (let i = 0; i < retries; i++) {
-          try {
-            const token = await getSessionToken()
-            if (!token) throw new Error('Sin token de sesión')
-
+        // 2. Intentar backend con timeout corto (1 intento)
+        try {
+          const token = await getSessionToken()
+          if (token) {
             const data = await Promise.race([
               backendApi.withToken(token).get<Profile>('/api/v1/profiles/me'),
               new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('request-timeout')), 10000)
+                setTimeout(() => reject(new Error('backend-timeout')), 5000)
               ),
             ])
-
-            if (!mounted) return
-
-            if (data) {
+            if (data && mounted) {
               setCachedProfile(data)
               setProfile(data)
               return
             }
-
-            if (i < retries - 1) await new Promise(r => setTimeout(r, 1500 * (i + 1)))
-          } catch (e) {
-            console.warn(`fetchProfile intento ${i + 1} fallido:`, (e as Error).message)
-            if (i < retries - 1) await new Promise(r => setTimeout(r, 1500 * (i + 1)))
           }
+        } catch (backendErr) {
+          console.warn('[RECIPE] Backend no disponible, usando Supabase:', (backendErr as Error).message)
         }
+
+        // 3. Fallback: Supabase directo
+        if (!mounted) return
+        const fallback = await fetchProfileFromSupabase(userId)
+        if (fallback && mounted) {
+          setCachedProfile(fallback)
+          setProfile(fallback)
+          return
+        }
+
         if (mounted) setProfile(null)
       } finally {
         fetchingProfile = false
@@ -135,14 +146,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Refresco silencioso en background (cuando ya hay caché)
-    const refreshBackground = async (_userId: string) => {
+    const refreshBackground = async (userId: string) => {
       if (fetchingProfile) return
       fetchingProfile = true
       try {
         const token = await getSessionToken()
-        if (!token) return
-        const data = await backendApi.withToken(token).get<Profile>('/api/v1/profiles/me')
-        if (data && mounted) { setCachedProfile(data); setProfile(data) }
+        if (token) {
+          try {
+            const data = await backendApi.withToken(token).get<Profile>('/api/v1/profiles/me')
+            if (data && mounted) { setCachedProfile(data); setProfile(data); return }
+          } catch {}
+        }
+        // Fallback silencioso a Supabase
+        const fallback = await fetchProfileFromSupabase(userId)
+        if (fallback && mounted) { setCachedProfile(fallback); setProfile(fallback) }
       } catch {} finally { fetchingProfile = false }
     }
 
@@ -171,7 +188,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // ── Paso 1: restaurar sesión existente con getSession() ───────────────
-    // No esperamos a onAuthStateChange para no depender del timing de Vercel.
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (!mounted) return
       if (error) console.error('getSession error:', error)
@@ -179,11 +195,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         setSession(session)
         setUser(session.user)
-        await fetchProfile(session.user.id)
         subscribeToProfile(session.user.id)
+        // fire-and-forget: NO bloqueamos; perfil llega en background
+        fetchProfile(session.user.id)
       }
 
-      // Loading se apaga después de getSession, pase lo que pase
+      // Loading se apaga en cuanto sabemos si hay sesión o no
       if (mounted) setLoading(false)
     })
 
@@ -197,11 +214,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event === 'SIGNED_IN') {
           setSession(session)
           setUser(session?.user ?? null)
+          // Apagamos loading inmediatamente — no esperamos el perfil
+          if (mounted) setLoading(false)
           if (session?.user) {
-            await fetchProfile(session.user.id)
+            fetchProfile(session.user.id) // fire-and-forget
             subscribeToProfile(session.user.id)
           }
-          if (mounted) setLoading(false)
         }
 
         if (event === 'SIGNED_OUT') {
