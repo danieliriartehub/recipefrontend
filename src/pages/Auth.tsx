@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Mail, Lock, User as UserIcon, Loader2, CheckCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { backendApi } from "@/lib/backendApi";
 
 // ─── Validaciones ─────────────────────────────────────────────────────────────
 const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -84,19 +84,21 @@ const Auth = () => {
     }
   };
 
+  // ── Recuperar contraseña → backend /api/v1/auth/forgot-password ─────────
   const handleForgotPassword = async () => {
     if (!email) {
       toast.error("Ingresa tu correo primero");
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + "/auth?mode=reset",
-    });
-    if (!error) {
+    try {
+      await backendApi.post('/api/v1/auth/forgot-password', {
+        email,
+        redirect_to: window.location.origin + '/auth?mode=reset',
+      });
       setForgotSent(true);
       toast.success("📧 Correo enviado", { description: "Revisa tu bandeja de entrada." });
-    } else {
-      toast.error("Error", { description: error.message });
+    } catch (e: unknown) {
+      toast.error("Error", { description: (e as Error).message });
     }
   };
 

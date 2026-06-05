@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { Session, User, RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import { backendApi, type LoginResponse, type RegisterResponse } from '@/lib/backendApi'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -298,26 +299,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // ── signIn → backend /api/v1/auth/login ──────────────────────────────────
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error?.message ?? null }
-  }
-
-  const signUp = async (email: string, password: string, fullName: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    })
-    return {
-      error: error?.message ?? null,
-      // Si no hubo error pero session es null → Supabase requiere confirmación de correo
-      needsConfirmation: !error && !data.session,
+    try {
+      const data = await backendApi.post<LoginResponse>(
+        '/api/v1/auth/login',
+        { email, password }
+      )
+      // El backend devuelve tokens Supabase → sincronizamos el cliente local
+      await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      })
+      return { error: null }
+    } catch (e: unknown) {
+      return { error: (e as Error).message ?? 'Error de inicio de sesión' }
     }
   }
 
+  // ── signUp → backend /api/v1/auth/register ────────────────────────────────
+  const signUp = async (email: string, password: string, fullName: string) => {
+    try {
+      const data = await backendApi.post<RegisterResponse>(
+        '/api/v1/auth/register',
+        { email, password, full_name: fullName }
+      )
+      // Si hay sesión (sin confirmación de correo) la sincronizamos localmente
+      if (!data.needs_confirmation && data.session) {
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        })
+      }
+      return {
+        error: null,
+        needsConfirmation: data.needs_confirmation,
+      }
+    } catch (e: unknown) {
+      return {
+        error: (e as Error).message ?? 'Error de registro',
+        needsConfirmation: false,
+      }
+    }
+  }
+
+  // ── signOut → backend /api/v1/auth/logout + limpieza local ───────────────
   const signOut = async () => {
-    await supabase.auth.signOut()
+    try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      if (currentSession?.access_token) {
+        await backendApi.postAuth(
+          '/api/v1/auth/logout',
+          currentSession.access_token
+        )
+      }
+    } catch (e) {
+      console.warn('[RECIPE] Backend logout falló, cerrando sesión local igualmente:', e)
+    } finally {
+      await supabase.auth.signOut()
+    }
   }
 
   const refreshProfile = async () => {
