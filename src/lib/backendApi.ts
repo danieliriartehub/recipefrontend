@@ -26,7 +26,9 @@ export interface BackendSession {
   user: BackendUser
 }
 
-export interface LoginResponse extends BackendSession {}
+export interface LoginResponse {
+  session: BackendSession
+}
 
 export interface RegisterResponse {
   needs_confirmation: boolean

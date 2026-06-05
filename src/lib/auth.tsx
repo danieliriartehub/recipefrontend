@@ -288,11 +288,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         '/api/v1/auth/login',
         { email, password }
       )
-      // El backend devuelve tokens Supabase → sincronizamos el cliente local
+      // El backend devuelve { session: { access_token, refresh_token, … } }
+      // Sincronizamos el cliente local de Supabase con esos tokens
       // Esto dispara SIGNED_IN en onAuthStateChange → handleSession → setSession/loading
       await supabase.auth.setSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
       })
       return { error: null }
     } catch (e: unknown) {
