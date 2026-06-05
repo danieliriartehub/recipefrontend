@@ -1,6 +1,10 @@
 /**
  * Cliente HTTP para el backend RECIPE desplegado en Railway (FastAPI).
  * Base URL configurada mediante VITE_API_URL en variables de entorno.
+ *
+ * SEGURIDAD: todas las peticiones usan `credentials: 'include'` para que
+ * el navegador adjunte automáticamente la cookie HttpOnly que contiene
+ * el refresh_token — sin que JavaScript tenga acceso a su valor.
  */
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
@@ -19,8 +23,8 @@ export interface BackendUser {
 }
 
 export interface BackendSession {
+  /** access_token JWT — se mantiene solo en memoria (nunca en localStorage) */
   access_token: string
-  refresh_token: string
   token_type: string
   expires_in: number
   user: BackendUser
@@ -33,6 +37,11 @@ export interface LoginResponse {
 export interface RegisterResponse {
   needs_confirmation: boolean
   session: BackendSession | null
+}
+
+export interface RefreshResponse {
+  access_token: string
+  expires_in: number
 }
 
 export interface MeResponse {
@@ -49,6 +58,9 @@ export interface MeResponse {
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
+    // credentials: 'include' es fundamental para que la cookie HttpOnly
+    // del refresh_token se adjunte en peticiones cross-origin
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers ?? {}),
@@ -132,9 +144,9 @@ export const backendApi = {
    */
   withToken(token: string) {
     return {
-      get: <T>(path: string) => backendApi.getAuth<T>(path, token),
-      post: <T>(path: string, body?: unknown) => backendApi.postAuth<T>(path, token, body),
-      patch: <T>(path: string, body?: unknown) => backendApi.patchAuth<T>(path, token, body),
+      get:    <T>(path: string) => backendApi.getAuth<T>(path, token),
+      post:   <T>(path: string, body?: unknown) => backendApi.postAuth<T>(path, token, body),
+      patch:  <T>(path: string, body?: unknown) => backendApi.patchAuth<T>(path, token, body),
       delete: <T>(path: string) => backendApi.deleteAuth<T>(path, token),
     }
   },
