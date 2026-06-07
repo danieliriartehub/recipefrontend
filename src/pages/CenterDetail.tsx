@@ -7,7 +7,7 @@ import { MaterialChip } from "@/components/recipe/MaterialChip";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle, CheckCircle2, Clock, MapPin,
-  Navigation, Phone,
+  Navigation, Phone, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCenterById } from "@/lib/api";
