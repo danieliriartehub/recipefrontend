@@ -220,18 +220,7 @@ export const BADGES: Badge[] = [
 /* Recommendation: closest open center the user can use */
 export const RECOMMENDED_CENTER_ID = "c1";
 
-/* ---------- ECO TITLES (gamified identity) ---------- */
-export const ECO_TITLES = [
-  { min: 0, title: "Eco Rookie", emoji: "🌱", color: "from-emerald-400 to-teal-500" },
-  { min: 500, title: "Green Builder", emoji: "🌿", color: "from-green-500 to-emerald-600" },
-  { min: 1500, title: "Planet Guardian", emoji: "🛡️", color: "from-teal-500 to-cyan-600" },
-  { min: 3000, title: "Sustainability Master", emoji: "🏆", color: "from-amber-400 to-orange-500" },
-];
-
-export const getEcoTitle = (points: number) => {
-  return [...ECO_TITLES].reverse().find((t) => points >= t.min) ?? ECO_TITLES[0];
-};
-
+/* ---------- ECO TITLES REMOVED ---------- */
 /* ---------- MARKETPLACE (eco-products & experiences) ---------- */
 export interface MarketItem {
   id: string;
