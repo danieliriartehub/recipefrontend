@@ -27,9 +27,10 @@ import {
   Calculator,
 } from "lucide-react";
 
-// ─── Constantes de niveles (deben coincidir con la BD) ────────────────────────
-const LEVEL_NAMES     = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
+// ─── Constantes de niveles (fuente única de verdad) ─────────────────────────
+const LEVEL_NAMES      = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
 const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 10000];
+const LEVEL_EMOJIS     = ["🌱", "🌿", "🌳", "⚡", "🌍", "🏆"];
 // Iniciales de días de la semana (0=Dom … 6=Sáb)
 const DAY_LABELS = ["D", "L", "M", "M", "J", "V", "S"] as const;
 
@@ -117,16 +118,20 @@ const Dashboard = () => {
   }, []);
 
   // ── Valores derivados del perfil ───────────────────────────────────────────
-  const levelIndex  = profile?.level_index    ?? 0;
   const points      = profile?.points         ?? 0;
   const streak      = profile?.streak_days    ?? 0;
   const weeklyGoal  = profile?.weekly_goal_kg ?? 5;
   const totalKg     = profile?.total_kg       ?? 0;
   const firstName   = (profile?.full_name ?? "Usuario").split(" ")[0];
 
-  const nextLevelAt = LEVEL_THRESHOLDS[levelIndex + 1] ?? 10000;
+  // Derivar nivel directamente de los puntos (evita desync con profile.level_index)
+  const levelIndex  = LEVEL_THRESHOLDS.filter(t => points >= t).length - 1;
+  const isMaxLevel  = levelIndex >= LEVEL_NAMES.length - 1;
+  const prevLevelAt = LEVEL_THRESHOLDS[levelIndex] ?? 0;
+  const nextLevelAt = LEVEL_THRESHOLDS[levelIndex + 1] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
   const nextLevel   = LEVEL_NAMES[levelIndex + 1] ?? "Leyenda Eco";
-  const progress    = Math.min(100, Math.round((points / nextLevelAt) * 100));
+  const rangeSize   = nextLevelAt - prevLevelAt;
+  const progress    = isMaxLevel ? 100 : Math.min(100, Math.round(((points - prevLevelAt) / rangeSize) * 100));
   const title       = getEcoTitle(points);
 
   // ── Fallback de balance para total_kg / co2_saved_kg si profile no los tiene aún ──
@@ -278,17 +283,19 @@ const Dashboard = () => {
 
           <div className="relative flex items-start justify-between">
             <div>
-              <div
-                className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r ${title.color} px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider`}
-              >
-                <span>{title.emoji}</span> {title.title}
+              {/* Badges: título decorativo + nivel de gamificación */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r ${title.color} px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider`}>
+                  <span>{title.emoji}</span> {title.title}
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-bold backdrop-blur border border-white/10">
+                  {LEVEL_EMOJIS[levelIndex]} {LEVEL_NAMES[levelIndex]}
+                </div>
               </div>
               <p className="mt-3 font-display text-[44px] font-extrabold leading-none">
                 {points.toLocaleString()}
               </p>
-              <p className="mt-1 text-xs opacity-85">
-                EcoPuntos · faltan {(nextLevelAt - points).toLocaleString()} para {nextLevel}
-              </p>
+              <p className="mt-0.5 text-[11px] opacity-75">EcoPuntos acumulados</p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 backdrop-blur">
@@ -301,11 +308,32 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="relative mt-4 h-1.5 overflow-hidden rounded-full bg-white/20">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-accent to-white transition-all duration-700"
-              style={{ width: `${progress}%` }}
-            />
+          {/* Barra de progreso al siguiente nivel */}
+          <div className="relative mt-4">
+            <div className="flex items-center justify-between text-[11px] mb-1.5 font-semibold">
+              <span>{LEVEL_EMOJIS[levelIndex]} {LEVEL_NAMES[levelIndex]}</span>
+              {isMaxLevel ? (
+                <span className="opacity-90">🏆 Nivel máximo</span>
+              ) : (
+                <span className="opacity-75">{nextLevel} {LEVEL_EMOJIS[levelIndex + 1]}</span>
+              )}
+            </div>
+            <div className="relative h-2.5 overflow-hidden rounded-full bg-white/20">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-accent via-yellow-300 to-white transition-all duration-700"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-[10px]">
+              <span className="opacity-60">{progress}% del nivel</span>
+              {isMaxLevel ? (
+                <span className="font-bold opacity-90">¡Leyenda Eco! 🌍</span>
+              ) : (
+                <span className="font-semibold">
+                  {(nextLevelAt - points).toLocaleString()} pts para {nextLevel} →
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </section>
