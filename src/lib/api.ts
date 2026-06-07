@@ -1,37 +1,62 @@
+/**
+ * api.ts — Capa de datos del frontend RECIPE.
+ *
+ * Todas las operaciones se realizan a través del backend FastAPI (Railway)
+ * usando JWT Bearer tokens emitidos por Supabase.
+ *
+ * El cliente Supabase se importa ÚNICAMENTE para obtener el token de sesión
+ * y para la RPC generate_qr_token (que aún no tiene endpoint en el backend).
+ */
+
 import { supabase } from '@/lib/supabase'
+import { backendApi } from '@/lib/backendApi'
+
+// ─── Helper: obtener token activo ─────────────────────────────────────────────
+
+async function getToken(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) throw new Error('No autenticado')
+  return session.access_token
+}
 
 // ─── CENTROS ──────────────────────────────────────────────────────────────────
 
 export async function getCenters() {
-  const { data, error } = await supabase
-    .from('centers')
-    .select('*')
-    .order('status')
-  if (error) throw error
-  return data
+  return backendApi.get<unknown[]>('/api/v1/centers/')
 }
 
 export async function getCenterById(id: string) {
-  const { data, error } = await supabase
-    .from('centers')
-    .select('*')
-    .eq('id', id)
-    .single()
-  if (error) throw error
-  return data
+  return backendApi.get<unknown>(`/api/v1/centers/${id}`)
+}
+
+export async function getAvailableCenters() {
+  return backendApi.get<unknown[]>('/api/v1/centers/available')
+}
+
+export async function getCentersByMaterial(material: string) {
+  return backendApi.get<unknown[]>(
+    `/api/v1/centers/by-material?material=${encodeURIComponent(material)}`
+  )
+}
+
+export async function searchCenters(params: {
+  campus?: string
+  material?: string
+  onlyActive?: boolean
+}) {
+  const qs = new URLSearchParams()
+  if (params.campus)    qs.set('campus', params.campus)
+  if (params.material)  qs.set('material', params.material)
+  if (params.onlyActive !== undefined) qs.set('only_active', String(params.onlyActive))
+  return backendApi.get<unknown[]>(`/api/v1/centers/search?${qs.toString()}`)
 }
 
 // ─── WALLET ───────────────────────────────────────────────────────────────────
 
-// Fuente única de balance — lee de la vista user_balance
-export async function getUserBalance(userId: string) {
-  const { data, error } = await supabase
-    .from('user_balance')
-    .select('*')
-    .eq('user_id', userId)
-    .single()
-  if (error) throw error
-  return data as {
+/** Fuente única de balance — lee de la vista user_balance */
+export async function getUserBalance(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<{
     user_id: string
     current_balance: number
     total_earned: number
@@ -40,88 +65,57 @@ export async function getUserBalance(userId: string) {
     co2_saved_kg: number
     streak_days: number
     total_recyclings: number
-  }
+  }>('/api/v1/wallet/balance')
 }
 
-// Historial unificado — reemplaza getWalletEntries con limit opcional
-export async function getWalletHistory(userId: string, limit = 20) {
-  const { data, error } = await supabase
-    .from('wallet_history')
-    .select('*')
-    .eq('user_id', userId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  if (error) throw error
-  return data ?? []
+/** Historial unificado con limit opcional */
+export async function getWalletHistory(_userId: string, limit = 20) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>(
+    `/api/v1/wallet/history?limit=${limit}`
+  )
 }
 
-// Últimas 5 transacciones para Profile
-export async function getRecentTransactions(userId: string) {
-  return getWalletHistory(userId, 5)
+/** Últimas 5 transacciones para Profile */
+export async function getRecentTransactions(_userId: string) {
+  return getWalletHistory(_userId, 5)
 }
 
-export async function getUserWallet(userId: string) {
-  const { data, error } = await supabase
-    .from('user_wallet')
-    .select('current_balance')
-    .eq('user_id', userId)
-    .single()
-  if (error) throw error
+/** @deprecated Usar getUserBalance en su lugar */
+export async function getUserWallet(_userId: string) {
+  const data = await getUserBalance(_userId)
   return data?.current_balance ?? 0
 }
 
-export async function getRecentWalletTransactions(userId: string) {
-  const { data, error } = await supabase
-    .from('wallet_transactions')
-    .select('*')
-    .eq('user_id', userId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(5)
-  if (error) throw error
-  return data ?? []
+/** @deprecated Usar getWalletHistory en su lugar */
+export async function getRecentWalletTransactions(_userId: string) {
+  return getWalletHistory(_userId, 5)
 }
 
-export async function getWalletEntries(userId: string) {
-  const { data, error } = await supabase
-    .from('wallet_history')
-    .select('*')
-    .eq('user_id', userId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data
+/** @deprecated Usar getWalletHistory en su lugar */
+export async function getWalletEntries(_userId: string) {
+  return getWalletHistory(_userId)
 }
 
-export async function getWalletBalance(userId: string) {
-  const { data, error } = await supabase
-    .from('user_current_balance')
-    .select('current_balance')
-    .eq('user_id', userId)
-    .single()
-  if (error) throw error
+/** @deprecated Usar getUserBalance en su lugar */
+export async function getWalletBalance(_userId: string) {
+  const data = await getUserBalance(_userId)
   return data?.current_balance ?? 0
 }
 
-export async function softDeleteWalletEntry(id: string) {
-  const { error } = await supabase
-    .from('wallet_entries')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id)
-  if (error) throw error
+/**
+ * softDeleteWalletEntry — El backend no expone este endpoint aún.
+ * Se conserva la firma para no romper llamadas existentes.
+ */
+export async function softDeleteWalletEntry(_id: string) {
+  console.warn('[RECIPE] softDeleteWalletEntry: endpoint no disponible en backend aún')
 }
 
 // ─── RECICLAJES ───────────────────────────────────────────────────────────────
 
-export async function getRecyclings(userId: string) {
-  const { data, error } = await supabase
-    .from('recyclings')
-    .select('*, centers(name, district)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data
+export async function getRecyclings(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/recyclings/')
 }
 
 export async function insertRecycling(params: {
@@ -132,178 +126,96 @@ export async function insertRecycling(params: {
   points_earned: number
   co2_saved_kg: number
 }) {
-  const { data, error } = await supabase
-    .from('recyclings')
-    .insert(params)
-    .select()
-    .single()
-  if (error) throw error
-  return data
+  const token = await getToken()
+  return backendApi.withToken(token).post<unknown>('/api/v1/recyclings/', params)
 }
 
 // ─── NOTIFICACIONES ───────────────────────────────────────────────────────────
 
-export async function getNotifications(userId: string) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data
+export async function getNotifications(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/notifications/')
 }
 
 export async function markNotificationRead(id: string) {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ read: true })
-    .eq('id', id)
-  if (error) throw error
+  const token = await getToken()
+  return backendApi.withToken(token).patch<unknown>(`/api/v1/notifications/${id}/read`)
 }
 
-export async function markAllNotificationsRead(userId: string) {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ read: true })
-    .eq('user_id', userId)
-  if (error) throw error
+export async function markAllNotificationsRead(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).post<unknown>('/api/v1/notifications/read-all')
 }
 
 // ─── CUPONES ──────────────────────────────────────────────────────────────────
 
-export async function getUserCoupons(userId: string) {
-  const { data, error } = await supabase
-    .from('user_coupons')
-    .select('*, rewards(*)')
-    .eq('user_id', userId)
-    .order('redeemed_at', { ascending: false })
-  if (error) throw error
-  return data
+export async function getUserCoupons(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/marketplace/coupons')
 }
 
-export async function redeemReward(userId: string, rewardId: string, code: string) {
-  const { data, error } = await supabase
-    .from('user_coupons')
-    .insert({ user_id: userId, reward_id: rewardId, code })
-    .select()
-    .single()
-  if (error) throw error
-  return data
+export async function redeemReward(userId: string, rewardId: string, _code: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).post<unknown>('/api/v1/marketplace/redeem', {
+    user_id: userId,
+    reward_id: rewardId,
+  })
 }
 
 // ─── REWARDS / MARKETPLACE ────────────────────────────────────────────────────
 
 export async function getRewards() {
-  const { data, error } = await supabase
-    .from('rewards')
-    .select('*')
-    .eq('active', true)
-    .order('cost_points')
-  if (error) throw error
-  return data
+  return backendApi.get<unknown[]>('/api/v1/marketplace/rewards')
 }
 
 export async function getMarketItems() {
-  const { data, error } = await supabase
-    .from('market_items')
-    .select('*')
-    .eq('active', true)
-    .order('cost_points')
-  if (error) throw error
-  return data
+  return backendApi.get<unknown[]>('/api/v1/marketplace/items')
 }
 
 export async function getMarketItemById(id: string) {
-  const { data, error } = await supabase
-    .from('market_items')
-    .select('*')
-    .eq('id', id)
-    .single()
-  if (error) throw error
-  return data
+  return backendApi.get<unknown>(`/api/v1/marketplace/items/${id}`)
 }
 
 // ─── MISIONES ─────────────────────────────────────────────────────────────────
 
-export async function getMissionsWithProgress(userId: string) {
-  const today = new Date().toISOString().split('T')[0]
-  const { data, error } = await supabase
-    .from('missions')
-    .select(`
-      *,
-      user_missions!left(done, completed_at, period_start)
-    `)
-    .eq('active', true)
-    .eq('user_missions.user_id', userId)
-    .eq('user_missions.period_start', today)
-  if (error) throw error
-  return data
+export async function getMissionsWithProgress(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/missions/')
 }
 
-export async function completeMission(userId: string, missionId: string) {
-  const today = new Date().toISOString().split('T')[0]
-  const { error } = await supabase
-    .from('user_missions')
-    .upsert({
-      user_id: userId,
-      mission_id: missionId,
-      done: true,
-      completed_at: new Date().toISOString(),
-      period_start: today,
-    })
-  if (error) throw error
+export async function completeMission(_userId: string, missionId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).post<unknown>(`/api/v1/missions/${missionId}/complete`)
 }
 
 // ─── BADGES ───────────────────────────────────────────────────────────────────
 
-export async function getBadgesWithStatus(userId: string) {
-  const { data, error } = await supabase
-    .from('badges')
-    .select(`
-      *,
-      user_badges!left(unlocked_at)
-    `)
-    .eq('user_badges.user_id', userId)
-  if (error) throw error
-  return data
+export async function getBadgesWithStatus(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/missions/badges')
 }
 
 // ─── CHALLENGES ───────────────────────────────────────────────────────────────
 
-export async function getChallengesWithProgress(userId: string) {
-  const { data, error } = await supabase
-    .from('challenges')
-    .select(`
-      *,
-      user_challenges!left(progress, completed)
-    `)
-    .eq('active', true)
-    .eq('user_challenges.user_id', userId)
-  if (error) throw error
-  return data
+export async function getChallengesWithProgress(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/missions/challenges')
 }
 
 // ─── RANKING ──────────────────────────────────────────────────────────────────
 
 export async function getUniversityRankings() {
-  const { data, error } = await supabase
-    .from('university_rankings')
-    .select('*')
-    .order('total_kg', { ascending: false })
-  if (error) throw error
-  return data
+  return backendApi.get<unknown[]>('/api/v1/rankings/universities')
 }
 
 export async function getWeeklyLeaders() {
-  const { data, error } = await supabase
-    .from('weekly_leaders')
-    .select('*')
-    .limit(10)
-  if (error) throw error
-  return data
+  return backendApi.get<unknown[]>('/api/v1/rankings/weekly')
 }
 
 // ─── QR TOKENS ───────────────────────────────────────────────────────────────
+//
+// El backend (aliados) expone validate-qr pero no generate-qr aún.
+// Se mantiene la llamada RPC directa a Supabase como fallback temporal.
 
 export async function generateQrToken(userId: string) {
   const { data, error } = await supabase
@@ -326,18 +238,15 @@ export async function generateQrToken(userId: string) {
 
 // ─── PERFIL ───────────────────────────────────────────────────────────────────
 
-export async function updateProfile(userId: string, updates: {
+export async function updateProfile(_userId: string, updates: {
   full_name?: string
   username?: string
   career?: string
   university_id?: string
   weekly_goal_kg?: number
 }) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', userId)
-  if (error) throw error
+  const token = await getToken()
+  return backendApi.withToken(token).patch<unknown>('/api/v1/profiles/me', updates)
 }
 
 // ─── ESCANEOS ─────────────────────────────────────────────────────────────────
@@ -353,71 +262,11 @@ export async function insertScan(params: {
   estimated_points: number
   image_url?: string
 }) {
-  const { data, error } = await supabase
-    .from('scans')
-    .insert(params)
-    .select()
-    .single()
-  if (error) throw error
-  return data
+  const token = await getToken()
+  return backendApi.withToken(token).post<unknown>('/api/v1/scans/', params)
 }
 
-export async function getScanHistory(userId: string) {
-  const { data, error } = await supabase
-    .from('scans')
-    .select('*, centers(name)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(20)
-  if (error) throw error
-  return data
-}
-
-export async function getCentersByMaterial(material: string) {
-  const { data, error } = await supabase
-    .from('centers')
-    .select('*')
-    .contains('accepted_materials', [material])
-    .not('status', 'in', '("cerrado","mantenimiento")')
-    .order('wait_minutes', { ascending: true })
-  if (error) throw error
-  return data ?? []
-}
-
-export async function searchCenters(params: {
-  campus?: string
-  material?: string
-  onlyActive?: boolean
-}) {
-  let query = supabase.from('centers').select('*')
-
-  if (params.campus === 'SL01') {
-    query = query.ilike('address', '%SL01%')
-  } else if (params.campus === 'SL02') {
-    query = query.ilike('address', '%SL02%')
-  }
-
-  if (params.material) {
-    query = query.contains('accepted_materials', [params.material])
-  }
-
-  if (params.onlyActive !== false) {
-    query = query.not('status', 'in', '("cerrado","mantenimiento")')
-  }
-
-  query = query.order('capacity', { ascending: true })
-
-  const { data, error } = await query
-  if (error) throw error
-  return data ?? []
-}
-
-export async function getAvailableCenters() {
-  const { data, error } = await supabase
-    .from('centers')
-    .select('id, name, district, address, lat, lng, status, accepted_materials, hours, wait_minutes, capacity, rating')
-    .not('status', 'in', '("cerrado","mantenimiento","lleno")')
-    .order('wait_minutes', { ascending: true })
-  if (error) throw error
-  return data ?? []
+export async function getScanHistory(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/scans/')
 }
