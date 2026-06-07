@@ -19,17 +19,17 @@ import {
 import { toast } from "sonner";
 
 // ─── Niveles ─────────────────────────────────────────────────────────────────
-const LEVEL_NAMES      = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
+const LEVEL_NAMES = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
 const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 10000];
-const LEVEL_EMOJIS     = ["🌱", "🌿", "🌳", "⚡", "🌍", "🏆"];
+const LEVEL_EMOJIS = ["🌱", "🌿", "🌳", "⚡", "🌍", "🏆"];
 
 const ECO_TITLES = [
-  { min: 0,     emoji: "🌱", title: "Semilla",        color: "from-green-400 to-green-600" },
-  { min: 500,   emoji: "🌿", title: "Brote",          color: "from-emerald-400 to-emerald-600" },
-  { min: 1500,  emoji: "🌳", title: "Sembrador",      color: "from-teal-400 to-teal-600" },
-  { min: 3000,  emoji: "⚡", title: "Eco Warrior",    color: "from-cyan-400 to-blue-500" },
-  { min: 5000,  emoji: "🌍", title: "Guardián Verde", color: "from-blue-500 to-indigo-600" },
-  { min: 10000, emoji: "🏆", title: "Leyenda Eco",    color: "from-purple-500 to-pink-500" },
+  { min: 0, emoji: "🌱", title: "Semilla", color: "from-green-400 to-green-600" },
+  { min: 500, emoji: "🌿", title: "Brote", color: "from-emerald-400 to-emerald-600" },
+  { min: 1500, emoji: "🌳", title: "Sembrador", color: "from-teal-400 to-teal-600" },
+  { min: 3000, emoji: "⚡", title: "Eco Warrior", color: "from-cyan-400 to-blue-500" },
+  { min: 5000, emoji: "🌍", title: "Guardián Verde", color: "from-blue-500 to-indigo-600" },
+  { min: 10000, emoji: "🏆", title: "Leyenda Eco", color: "from-purple-500 to-pink-500" },
 ];
 
 function getEcoTitle(points: number) {
@@ -39,8 +39,8 @@ function getEcoTitle(points: number) {
 // ─── Validación Zod ───────────────────────────────────────────────────────────
 const profileSchema = z.object({
   full_name: z.string().min(1, "Este campo es obligatorio"),
-  username:  z.string().min(1, "Este campo es obligatorio"),
-  email:     z.string().email("Correo electrónico inválido"),
+  username: z.string().min(1, "Este campo es obligatorio"),
+  email: z.string().email("Correo electrónico inválido"),
 });
 type ProfileForm = z.infer<typeof profileSchema>;
 
@@ -54,15 +54,15 @@ const Profile = () => {
   // ─── Saldo real desde user_balance (fuente única) ─────────────────────────
   const { data: balanceData, isLoading: balanceLoading } = useQuery({
     queryKey: ["balance", user?.id],
-    queryFn:  () => getUserBalance(user!.id),
-    enabled:  !!user,
+    queryFn: () => getUserBalance(user!.id),
+    enabled: !!user,
   });
 
   // ─── Últimas 5 transacciones desde wallet_history ────────────────────────
   const { data: transactions = [], isLoading: txLoading } = useQuery({
     queryKey: ["transactions", user?.id],
-    queryFn:  () => getRecentTransactions(user!.id),
-    enabled:  !!user,
+    queryFn: () => getRecentTransactions(user!.id),
+    enabled: !!user,
   });
 
   // ─── Formulario con validación ────────────────────────────────────────────
@@ -75,8 +75,8 @@ const Profile = () => {
     resolver: zodResolver(profileSchema),
     defaultValues: {
       full_name: profile?.full_name ?? "",
-      username:  profile?.username  ?? "",
-      email:     user?.email        ?? "",
+      username: profile?.username ?? "",
+      email: user?.email ?? "",
     },
   });
 
@@ -84,8 +84,8 @@ const Profile = () => {
   useEffect(() => {
     reset({
       full_name: profile?.full_name ?? "",
-      username:  profile?.username  ?? "",
-      email:     user?.email        ?? "",
+      username: profile?.username ?? "",
+      email: user?.email ?? "",
     });
   }, [profile, user, reset]);
 
@@ -110,40 +110,40 @@ const Profile = () => {
   };
 
   // ─── Datos del perfil ─────────────────────────────────────────────────────
-  const points      = profile?.points       ?? 0; // solo para calcular % de progreso
-  const streak      = profile?.streak_days  ?? 0;
-  const totalKg     = profile?.total_kg     ?? 0;
-  const co2Saved    = profile?.co2_saved_kg ?? 0;
-  
+  const points = profile?.points ?? 0; // solo para calcular % de progreso
+  const streak = profile?.streak_days ?? 0;
+  const totalKg = profile?.total_kg ?? 0;
+  const co2Saved = profile?.co2_saved_kg ?? 0;
+
   // Derivar nivel directamente de los puntos (evita desync con profile.level_index)
-  const levelIndex  = LEVEL_THRESHOLDS.filter(t => points >= t).length - 1;
-  const isMaxLevel  = levelIndex >= LEVEL_NAMES.length - 1;
+  const levelIndex = LEVEL_THRESHOLDS.filter(t => points >= t).length - 1;
+  const isMaxLevel = levelIndex >= LEVEL_NAMES.length - 1;
   const prevLevelAt = LEVEL_THRESHOLDS[levelIndex] ?? 0;
   const nextLevelAt = LEVEL_THRESHOLDS[levelIndex + 1] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
-  const levelName   = LEVEL_NAMES[levelIndex]     ?? "Semilla";
-  const nextLevel   = LEVEL_NAMES[levelIndex + 1] ?? "Leyenda Eco";
-  const rangeSize   = nextLevelAt - prevLevelAt;
-  const progress    = isMaxLevel ? 100 : Math.min(100, Math.round(((points - prevLevelAt) / rangeSize) * 100));
-  const title       = getEcoTitle(points);
-  const initials    = profile?.avatar_initials ?? "?";
-  const fullName    = profile?.full_name ?? "Usuario";
-  const username    = profile?.username ?? null;
-  const career      = profile?.career   ?? null;
+  const levelName = LEVEL_NAMES[levelIndex] ?? "Semilla";
+  const nextLevel = LEVEL_NAMES[levelIndex + 1] ?? "Leyenda Eco";
+  const rangeSize = nextLevelAt - prevLevelAt;
+  const progress = isMaxLevel ? 100 : Math.min(100, Math.round(((points - prevLevelAt) / rangeSize) * 100));
+  const title = getEcoTitle(points);
+  const initials = profile?.avatar_initials ?? "?";
+  const fullName = profile?.full_name ?? "Usuario";
+  const username = profile?.username ?? null;
+  const career = profile?.career ?? null;
 
-  const impactCo2   = co2Saved;
+  const impactCo2 = co2Saved;
   const impactTrees = +(co2Saved / 21).toFixed(2);
   const impactWater = Math.round(totalKg * 18);
 
   const menu = [
-    { icon: WalletIcon,  label: "Eco Wallet",             to: "/app/wallet" },
-    { icon: ShoppingBag, label: "Marketplace",             to: "/app/marketplace" },
-    { icon: Calculator,  label: "Eco Simulator",           to: "/app/simulator" },
-    { icon: Ticket,      label: "Mis cupones",             to: "/app/coupons" },
-    { icon: Trophy,      label: "Mi impacto",              to: "/app/impact" },
-    { icon: Bell,        label: "Notificaciones",          to: "/app/notifications" },
-    { icon: Shield,      label: "Privacidad y seguridad",  to: "#" },
-    { icon: Settings,    label: "Configuración",            to: "#" },
-    { icon: HelpCircle,  label: "Ayuda y soporte",         to: "#" },
+    { icon: WalletIcon, label: "Eco Wallet", to: "/app/wallet" },
+    { icon: ShoppingBag, label: "Marketplace", to: "/app/marketplace" },
+    { icon: Calculator, label: "Eco Simulator", to: "/app/simulator" },
+    { icon: Ticket, label: "Mis cupones", to: "/app/coupons" },
+    { icon: Trophy, label: "Mi impacto", to: "/app/impact" },
+    { icon: Bell, label: "Notificaciones", to: "/app/notifications" },
+    { icon: Shield, label: "Privacidad y seguridad", to: "#" },
+    { icon: Settings, label: "Configuración", to: "#" },
+    { icon: HelpCircle, label: "Ayuda y soporte", to: "#" },
   ];
 
   return (
@@ -279,9 +279,9 @@ const Profile = () => {
             </span>
           </div>
           <div className="grid grid-cols-3 gap-2 px-5 py-4">
-            <MiniImpact icon={<Wind className="h-4 w-4" />}     value={`${impactCo2}`}   unit="kg" label="CO₂ evitado" />
-            <MiniImpact icon={<TreePine className="h-4 w-4" />} value={`${impactTrees}`} unit=""   label="árboles/año" />
-            <MiniImpact icon={<Droplets className="h-4 w-4" />} value={`${impactWater}`} unit="L"  label="agua" />
+            <MiniImpact icon={<Wind className="h-4 w-4" />} value={`${impactCo2}`} unit="kg" label="CO₂ evitado" />
+            <MiniImpact icon={<TreePine className="h-4 w-4" />} value={`${impactTrees}`} unit="" label="árboles/año" />
+            <MiniImpact icon={<Droplets className="h-4 w-4" />} value={`${impactWater}`} unit="L" label="agua" />
           </div>
           <Link
             to="/app/impact"
@@ -404,9 +404,8 @@ const Profile = () => {
           <Link
             key={label}
             to={to}
-            className={`flex items-center gap-3 px-5 py-4 transition-smooth hover:bg-muted/40 ${
-              i !== menu.length - 1 ? "border-b border-border" : ""
-            }`}
+            className={`flex items-center gap-3 px-5 py-4 transition-smooth hover:bg-muted/40 ${i !== menu.length - 1 ? "border-b border-border" : ""
+              }`}
           >
             <Icon className="h-5 w-5 text-primary" />
             <span className="flex-1 text-sm font-medium">{label}</span>

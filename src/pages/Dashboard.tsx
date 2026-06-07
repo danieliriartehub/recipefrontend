@@ -28,9 +28,9 @@ import {
 } from "lucide-react";
 
 // ─── Constantes de niveles (fuente única de verdad) ─────────────────────────
-const LEVEL_NAMES      = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
+const LEVEL_NAMES = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
 const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 10000];
-const LEVEL_EMOJIS     = ["🌱", "🌿", "🌳", "⚡", "🌍", "🏆"];
+const LEVEL_EMOJIS = ["🌱", "🌿", "🌳", "⚡", "🌍", "🏆"];
 // Iniciales de días de la semana (0=Dom … 6=Sáb)
 const DAY_LABELS = ["D", "L", "M", "M", "J", "V", "S"] as const;
 
@@ -91,12 +91,12 @@ const Dashboard = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    const on  = () => setIsOnline(true);
+    const on = () => setIsOnline(true);
     const off = () => setIsOnline(false);
-    window.addEventListener("online",  on);
+    window.addEventListener("online", on);
     window.addEventListener("offline", off);
     return () => {
-      window.removeEventListener("online",  on);
+      window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
     };
   }, []);
@@ -118,21 +118,21 @@ const Dashboard = () => {
   }, []);
 
   // ── Valores derivados del perfil ───────────────────────────────────────────
-  const points      = profile?.points         ?? 0;
-  const streak      = profile?.streak_days    ?? 0;
-  const weeklyGoal  = profile?.weekly_goal_kg ?? 5;
-  const totalKg     = profile?.total_kg       ?? 0;
-  const firstName   = (profile?.full_name ?? "Usuario").split(" ")[0];
+  const points = profile?.points ?? 0;
+  const streak = profile?.streak_days ?? 0;
+  const weeklyGoal = profile?.weekly_goal_kg ?? 5;
+  const totalKg = profile?.total_kg ?? 0;
+  const firstName = (profile?.full_name ?? "Usuario").split(" ")[0];
 
   // Derivar nivel directamente de los puntos (evita desync con profile.level_index)
-  const levelIndex  = LEVEL_THRESHOLDS.filter(t => points >= t).length - 1;
-  const isMaxLevel  = levelIndex >= LEVEL_NAMES.length - 1;
+  const levelIndex = LEVEL_THRESHOLDS.filter(t => points >= t).length - 1;
+  const isMaxLevel = levelIndex >= LEVEL_NAMES.length - 1;
   const prevLevelAt = LEVEL_THRESHOLDS[levelIndex] ?? 0;
   const nextLevelAt = LEVEL_THRESHOLDS[levelIndex + 1] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
-  const nextLevel   = LEVEL_NAMES[levelIndex + 1] ?? "Leyenda Eco";
-  const rangeSize   = nextLevelAt - prevLevelAt;
-  const progress    = isMaxLevel ? 100 : Math.min(100, Math.round(((points - prevLevelAt) / rangeSize) * 100));
-  const title       = getEcoTitle(points);
+  const nextLevel = LEVEL_NAMES[levelIndex + 1] ?? "Leyenda Eco";
+  const rangeSize = nextLevelAt - prevLevelAt;
+  const progress = isMaxLevel ? 100 : Math.min(100, Math.round(((points - prevLevelAt) / rangeSize) * 100));
+  const title = getEcoTitle(points);
 
   // ── Fallback de balance para total_kg / co2_saved_kg si profile no los tiene aún ──
   const { data: balanceFallback } = useQuery({
@@ -144,7 +144,7 @@ const Dashboard = () => {
 
   // Usa datos del profile (actualizados por Realtime) o el fallback
   const totalKgFinal = profile?.total_kg ?? balanceFallback?.total_kg ?? 0;
-  const co2Final     = profile?.co2_saved_kg ?? balanceFallback?.co2_saved_kg ?? 0;
+  const co2Final = profile?.co2_saved_kg ?? balanceFallback?.co2_saved_kg ?? 0;
 
   // ── Queries a Supabase ────────────────────────────────────────────────────
   const { data: centers = [], isLoading: loadingCenters } = useQuery({
@@ -201,11 +201,11 @@ const Dashboard = () => {
     return (missions as any[])
       .filter((m) => m.type === "diaria")
       .map((m) => ({
-        id:    m.id as string,
+        id: m.id as string,
         title: m.title as string,
         emoji: (m.emoji as string | null) ?? "🎯",
-        xp:    (m.xp_reward ?? m.xp ?? 0) as number,
-        done:  parseDone(m.user_missions),
+        xp: (m.xp_reward ?? m.xp ?? 0) as number,
+        done: parseDone(m.user_missions),
       }));
   }, [missions]);
 
@@ -219,9 +219,9 @@ const Dashboard = () => {
     return Array.from({ length: 7 }, (_, i) => {
       const day = new Date(now);
       day.setDate(now.getDate() - (6 - i)); // i=0 → hace 6 días, i=6 → hoy
-      const dayStr  = toLocalDate(day);
-      const label   = DAY_LABELS[day.getDay()];
-      const earned  = (wallet as any[])
+      const dayStr = toLocalDate(day);
+      const label = DAY_LABELS[day.getDay()];
+      const earned = (wallet as any[])
         .filter((e) => e.points > 0 && (e.created_at as string | undefined)?.startsWith(dayStr))
         .reduce((sum, e) => sum + ((e.points as number) ?? 0), 0);
       return { label, value: earned, isToday: i === 6 };
@@ -532,9 +532,8 @@ const Dashboard = () => {
               {dailyMissions.map((m) => (
                 <div
                   key={m.id}
-                  className={`flex items-center gap-3 rounded-2xl p-2.5 transition-smooth ${
-                    m.done ? "bg-success/10" : "bg-muted/40"
-                  }`}
+                  className={`flex items-center gap-3 rounded-2xl p-2.5 transition-smooth ${m.done ? "bg-success/10" : "bg-muted/40"
+                    }`}
                 >
                   <span className="text-xl">{m.emoji}</span>
                   <div className="min-w-0 flex-1">
@@ -543,11 +542,10 @@ const Dashboard = () => {
                     </p>
                   </div>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
-                      m.done
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${m.done
                         ? "bg-success text-success-foreground"
                         : "bg-primary/15 text-primary"
-                    }`}
+                      }`}
                   >
                     {m.done ? "✓" : `+${m.xp}xp`}
                   </span>
@@ -592,19 +590,17 @@ const Dashboard = () => {
                 return (
                   <div key={i} className="flex flex-1 flex-col items-center gap-1">
                     <div
-                      className={`w-full rounded-t-md transition-all duration-500 ${
-                        bar.value === 0
+                      className={`w-full rounded-t-md transition-all duration-500 ${bar.value === 0
                           ? "bg-muted"
                           : bar.isToday
-                          ? "bg-gradient-primary"
-                          : "bg-primary/30"
-                      }`}
+                            ? "bg-gradient-primary"
+                            : "bg-primary/30"
+                        }`}
                       style={{ height: `${h}%` }}
                     />
                     <span
-                      className={`text-[10px] ${
-                        bar.isToday ? "font-bold text-primary" : "text-muted-foreground"
-                      }`}
+                      className={`text-[10px] ${bar.isToday ? "font-bold text-primary" : "text-muted-foreground"
+                        }`}
                     >
                       {bar.label}
                     </span>
