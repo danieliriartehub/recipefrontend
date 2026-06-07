@@ -11,7 +11,6 @@ import {
   getNotifications,
   getUserBalance,
 } from "@/lib/api";
-import { getEcoTitle } from "@/data/mock";
 import {
   Bell,
   ChevronRight,
@@ -132,7 +131,6 @@ const Dashboard = () => {
   const nextLevel = LEVEL_NAMES[levelIndex + 1] ?? "Leyenda Eco";
   const rangeSize = nextLevelAt - prevLevelAt;
   const progress = isMaxLevel ? 100 : Math.min(100, Math.round(((points - prevLevelAt) / rangeSize) * 100));
-  const title = getEcoTitle(points);
 
   // ── Fallback de balance para total_kg / co2_saved_kg si profile no los tiene aún ──
   const { data: balanceFallback } = useQuery({
@@ -283,14 +281,9 @@ const Dashboard = () => {
 
           <div className="relative flex items-start justify-between">
             <div>
-              {/* Badges: título decorativo + nivel de gamificación */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r ${title.color} px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider`}>
-                  <span>{title.emoji}</span> {title.title}
-                </div>
-                <div className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-bold backdrop-blur border border-white/10">
-                  {LEVEL_EMOJIS[levelIndex]} {LEVEL_NAMES[levelIndex]}
-                </div>
+              {/* Badge del nivel principal */}
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-bold backdrop-blur border border-white/10">
+                <span>{LEVEL_EMOJIS[levelIndex]}</span> {LEVEL_NAMES[levelIndex]}
               </div>
               <p className="mt-3 font-display text-[44px] font-extrabold leading-none">
                 {points.toLocaleString()}

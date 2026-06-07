@@ -23,19 +23,6 @@ const LEVEL_NAMES = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián 
 const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 10000];
 const LEVEL_EMOJIS = ["🌱", "🌿", "🌳", "⚡", "🌍", "🏆"];
 
-const ECO_TITLES = [
-  { min: 0, emoji: "🌱", title: "Semilla", color: "from-green-400 to-green-600" },
-  { min: 500, emoji: "🌿", title: "Brote", color: "from-emerald-400 to-emerald-600" },
-  { min: 1500, emoji: "🌳", title: "Sembrador", color: "from-teal-400 to-teal-600" },
-  { min: 3000, emoji: "⚡", title: "Eco Warrior", color: "from-cyan-400 to-blue-500" },
-  { min: 5000, emoji: "🌍", title: "Guardián Verde", color: "from-blue-500 to-indigo-600" },
-  { min: 10000, emoji: "🏆", title: "Leyenda Eco", color: "from-purple-500 to-pink-500" },
-];
-
-function getEcoTitle(points: number) {
-  return [...ECO_TITLES].reverse().find((t) => points >= t.min) ?? ECO_TITLES[0];
-}
-
 // ─── Validación Zod ───────────────────────────────────────────────────────────
 const profileSchema = z.object({
   full_name: z.string().min(1, "Este campo es obligatorio"),
@@ -124,7 +111,6 @@ const Profile = () => {
   const nextLevel = LEVEL_NAMES[levelIndex + 1] ?? "Leyenda Eco";
   const rangeSize = nextLevelAt - prevLevelAt;
   const progress = isMaxLevel ? 100 : Math.min(100, Math.round(((points - prevLevelAt) / rangeSize) * 100));
-  const title = getEcoTitle(points);
   const initials = profile?.avatar_initials ?? "?";
   const fullName = profile?.full_name ?? "Usuario";
   const username = profile?.username ?? null;
@@ -179,16 +165,16 @@ const Profile = () => {
               {initials}
             </div>
             <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-accent text-base shadow-card">
-              {title.emoji}
+              {LEVEL_EMOJIS[levelIndex]}
             </span>
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate font-display text-xl font-extrabold">{fullName}</p>
             {username && <p className="text-sm text-primary-foreground/80">{username}</p>}
             <div
-              className={`mt-1.5 inline-flex items-center gap-1 rounded-full bg-gradient-to-r ${title.color} px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider`}
+              className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-primary-foreground"
             >
-              {title.title}
+              Nivel {levelIndex}: {LEVEL_NAMES[levelIndex]}
             </div>
             {career && (
               <p className="mt-1 text-[11px] text-primary-foreground/75">{career}</p>
