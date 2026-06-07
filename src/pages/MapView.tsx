@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
 import {
-  Clock, MapPin, Star, Search, List, Map as MapIcon, WifiOff, X
+  Clock, MapPin, Search, List, Map as MapIcon, WifiOff, X
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { getCenters } from "@/lib/api";
@@ -188,7 +188,6 @@ function InteractiveMap({ centers }: InteractiveMapProps) {
           <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px;">
             <span style="width:8px;height:8px;border-radius:50%;background:${status.markerColor};display:inline-block;flex-shrink:0;"></span>
             <span style="font-size:11px;color:${status.markerColor};font-weight:600;">${status.label}</span>
-            ${center.rating ? `<span style="margin-left:auto;font-size:11px;font-weight:600;color:#374151;">⭐ ${center.rating}</span>` : ""}
           </div>
 
           ${center.address ? `<p style="font-size:11px;color:#6b7280;margin:0 0 4px;">${center.district ? center.district + " · " : ""}${center.address}</p>` : ""}
@@ -496,13 +495,9 @@ const MapView = () => {
                   )}
                 </div>
 
-                {/* Rating + espera */}
+                {/* Tiempo de espera */}
                 <div className="shrink-0 text-right">
-                  <div className="flex items-center justify-end gap-1 text-xs font-semibold text-gray-700">
-                    <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                    {c.rating ?? 0}
-                  </div>
-                  <p className="mt-1 font-display text-lg font-extrabold text-primary">
+                  <p className="font-display text-lg font-extrabold text-primary">
                     {c.wait_minutes ?? 0}
                     <span className="text-xs font-normal">min</span>
                   </p>

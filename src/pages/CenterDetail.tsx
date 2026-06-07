@@ -1,15 +1,116 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
 import { MaterialChip } from "@/components/recipe/MaterialChip";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle, CheckCircle2, Clock, MapPin,
-  Navigation, Phone, Star, Users,
+  Navigation, Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCenterById } from "@/lib/api";
+
+// ─── Carga Leaflet desde CDN (reutiliza instancia global) ─────────────────────
+const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+const LEAFLET_JS  = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+let leafletDetailPromise: Promise<any> | null = null;
+function loadLeafletDetail(): Promise<any> {
+  if (leafletDetailPromise) return leafletDetailPromise;
+  leafletDetailPromise = new Promise((resolve, reject) => {
+    if (!document.getElementById("leaflet-css")) {
+      const link = document.createElement("link");
+      link.id = "leaflet-css"; link.rel = "stylesheet"; link.href = LEAFLET_CSS;
+      document.head.appendChild(link);
+    }
+    if ((window as any).L) { resolve((window as any).L); return; }
+    const script = document.createElement("script");
+    script.src = LEAFLET_JS;
+    script.onload  = () => resolve((window as any).L);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  return leafletDetailPromise;
+}
+
+// ─── Mapa de un solo centro ───────────────────────────────────────────────────
+const STATUS_MARKER_COLOR: Record<string, string> = {
+  abierto: "#22c55e", alta_demanda: "#eab308",
+  lleno: "#f97316", mantenimiento: "#9ca3af", cerrado: "#ef4444",
+};
+
+function SingleCenterMap({ lat, lng, name, status }: {
+  lat: number; lng: number; name: string; status: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef       = useRef<any>(null);
+
+  useEffect(() => {
+    if (!lat || !lng) return;
+    let destroyed = false;
+    loadLeafletDetail().then((L) => {
+      if (destroyed || !containerRef.current || mapRef.current) return;
+      const color = STATUS_MARKER_COLOR[status] ?? "#9ca3af";
+      const map = L.map(containerRef.current, {
+        center: [lat, lng],
+        zoom: 18,
+        zoomControl: true,
+        scrollWheelZoom: false,
+        tap: true,
+      });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(map);
+      // Marker SVG
+      const svgIcon = L.divIcon({
+        html: `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="54" viewBox="0 0 44 54">
+          <circle cx="22" cy="20" r="18" fill="${color}" stroke="white" stroke-width="3"
+            style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4))"/>
+          <text x="22" y="26" text-anchor="middle" font-size="16">♻️</text>
+          <polygon points="22,52 14,30 30,30" fill="${color}"/>
+        </svg>`,
+        className: "",
+        iconSize: [44, 54], iconAnchor: [22, 54], popupAnchor: [0, -54],
+      });
+      L.marker([lat, lng], { icon: svgIcon })
+        .addTo(map)
+        .bindPopup(`<strong style="font-size:12px;">${name}</strong>`, { maxWidth: 200 })
+        .openPopup();
+      setTimeout(() => map.invalidateSize(), 100);
+      mapRef.current = map;
+    });
+    return () => {
+      destroyed = true;
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+    };
+  }, [lat, lng, name, status]);
+
+  if (!lat || !lng) {
+    return (
+      <div className="h-44 rounded-3xl border border-border bg-gray-50 flex flex-col items-center justify-center gap-2">
+        <MapPin className="h-6 w-6 text-gray-300" />
+        <p className="text-xs text-gray-400">Ubicación no disponible</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-44 overflow-hidden rounded-3xl border border-border shadow-card">
+      <div ref={containerRef} style={{ height: "100%", width: "100%", borderRadius: "1.5rem" }} />
+      {/* Botón abrir en Google Maps */}
+      <a
+        href={`https://www.google.com/maps?q=${lat},${lng}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute bottom-2 right-2 z-[1000] flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1.5 text-[10px] font-semibold text-gray-700 shadow-md backdrop-blur hover:bg-white transition-colors"
+      >
+        <Navigation className="h-3 w-3 text-primary" /> Abrir en Maps
+      </a>
+    </div>
+  );
+}
 
 // ─── Estado de centros — sin mock ────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; bg: string; text: string; dot: string }> = {
@@ -104,47 +205,13 @@ const CenterDetail = () => {
 
       <div className="px-5 space-y-4">
 
-        {/* ── Mapa preview — La Molina ── */}
-        <div
-          className="relative h-40 overflow-hidden rounded-3xl border border-border shadow-card"
-          style={{ background: "hsl(150 25% 95%)" }}
-        >
-          <svg viewBox="0 0 400 200" className="absolute inset-0 h-full w-full">
-            {/* Av. La Fontana */}
-            <line x1="0" y1="95" x2="400" y2="105"
-              stroke="hsl(210 20% 82%)" strokeWidth="20" />
-            {/* Calle transversal */}
-            <line x1="200" y1="0" x2="210" y2="200"
-              stroke="hsl(210 20% 82%)" strokeWidth="14" />
-            <text x="55" y="88" fontSize="9" fill="hsl(210 30% 45%)"
-              fontFamily="sans-serif" fontWeight="600">
-              Av. La Fontana
-            </text>
-          </svg>
-
-          {/* Punto usuario */}
-          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col items-center">
-            <div className="relative flex items-center justify-center">
-              <div className="absolute h-6 w-6 animate-ping rounded-full bg-blue-400/40" />
-              <div className="h-3 w-3 rounded-full bg-blue-500 ring-2 ring-white" />
-            </div>
-            <p className="mt-1 text-[10px] font-bold text-gray-600">Tú</p>
-          </div>
-
-          {/* Pin del centro */}
-          <div className="absolute right-8 top-1/2 -translate-y-full flex flex-col items-center">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-full text-white shadow-lg ${s.dot}`}>
-              <MapPin className="h-5 w-5" />
-            </div>
-            <p className="mt-1 text-[10px] font-bold text-gray-700 max-w-[60px] truncate text-center">
-              {isLoading ? "—" : c?.name?.split(" ")[0]}
-            </p>
-          </div>
-
-          <div className="absolute bottom-2 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium shadow backdrop-blur">
-            📍 La Molina · Campus USIL
-          </div>
-        </div>
+        {/* ── Mapa dinámico del centro ── */}
+        <SingleCenterMap
+          lat={(c as any)?.lat}
+          lng={(c as any)?.lng}
+          name={(c as any)?.name ?? "Centro de acopio"}
+          status={(c as any)?.status ?? "cerrado"}
+        />
 
         {/* ── Header card ── */}
         {isLoading ? (
@@ -164,8 +231,8 @@ const CenterDetail = () => {
               </span>
             </div>
 
-            {/* Grid métricas — Fix 1 */}
-            <div className="mt-4 grid grid-cols-3 divide-x divide-border rounded-2xl bg-muted/50 py-3 text-center">
+            {/* Grid métricas — espera y capacidad */}
+            <div className="mt-4 grid grid-cols-2 divide-x divide-border rounded-2xl bg-muted/50 py-3 text-center">
               <div>
                 <p className="font-display text-base font-extrabold text-primary">
                   {c.wait_minutes}
@@ -179,12 +246,6 @@ const CenterDetail = () => {
                   <span className="text-xs font-normal">%</span>
                 </p>
                 <p className="text-[11px] text-muted-foreground">Capacidad</p>
-              </div>
-              <div>
-                <p className="flex items-center justify-center gap-1 font-display text-base font-extrabold text-primary">
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /> {c.rating}
-                </p>
-                <p className="text-[11px] text-muted-foreground">Valoración</p>
               </div>
             </div>
           </div>
