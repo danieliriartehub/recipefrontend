@@ -10,7 +10,7 @@ const STEPS = [
     icon: MapPin,
     title: "Encuentra puntos cercanos",
     body: "Mapa inteligente con estados en tiempo real: abierto, lleno, mantenimiento o campañas móviles.",
-    tint: "from-primary to-primary-glow",
+    tint: "from-primary to-primaryGlow",
   },
   {
     icon: QrCode,
@@ -22,13 +22,13 @@ const STEPS = [
     icon: TreePine,
     title: "Ve tu impacto real",
     body: "Cada kilo equivale a árboles, agua y CO₂. Compite con tu universidad y sube de nivel.",
-    tint: "from-accent to-primary-glow",
+    tint: "from-accent to-primaryGlow",
   },
   {
     icon: Gift,
     title: "Canjea recompensas",
     body: "Cafés, transporte, cursos y más. Beneficios pensados para universitarios de Lima.",
-    tint: "from-primary-glow to-accent",
+    tint: "from-primaryGlow to-accent",
   },
 ];
 

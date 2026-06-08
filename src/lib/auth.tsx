@@ -94,11 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
 
       accessTokenRef.current = access_token
-      console.log(`[RECIPE] Token refrescado. Próxima expiración en ${expires_in}s`)
       return access_token
     } catch (err) {
       // Cookie expirada o revocada → sesión terminada
-      console.warn('[RECIPE] silentRefresh falló:', (err as Error).message)
       return null
     }
   }, [])
@@ -270,7 +268,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, sess) => {
         if (!mounted) return
-        console.log('Auth event:', event)
 
         if (event === 'SIGNED_OUT') {
           stopRefreshTimer()

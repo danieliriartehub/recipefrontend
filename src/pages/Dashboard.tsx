@@ -393,7 +393,7 @@ const Dashboard = () => {
       {/* ── Centro recomendado — más cercano según geolocalización ── */}
       <section className="px-5 pt-5">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="font-display text-sm font-bold text-muted-foreground">RECOMENDADO POR IA</h3>
+          <h3 className="font-display text-sm font-bold text-muted-foreground">RECOMENDADO</h3>
           <Link to="/app/map" className="text-xs font-semibold text-primary">Ver mapa →</Link>
         </div>
 
