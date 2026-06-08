@@ -41,20 +41,23 @@ const Wallet = () => {
     queryKey: ["wallet_history", user?.id],
     queryFn: () => getWalletHistory(user!.id),
     enabled: !!user,
+    staleTime: 0, // Siempre obtener datos frescos al entrar
   });
 
   // Balance desde profile (fuente única, actualizado por Realtime)
   const balance = profile?.points ?? 0;
 
-  // type es 'IN' (ingreso) u 'OUT' (canje/gasto), amount siempre positivo
+  const isIngreso = (w: any) => w.type === "IN" || (w.title || w.description || "").toLowerCase().includes("reciclaje") || !!w.related_recycling_id;
+  const isGasto = (w: any) => !isIngreso(w);
+
   const list = (wallet as any[]).filter((w) =>
     filter === "todos" ||
-    (filter === "earned" && w.type === "IN") ||
-    (filter === "spent"  && w.type === "OUT")
+    (filter === "earned" && isIngreso(w)) ||
+    (filter === "spent"  && isGasto(w))
   );
 
-  const earned = (wallet as any[]).filter((w) => w.type === "IN").reduce((s, w) => s + (w.amount ?? 0), 0);
-  const spent  = (wallet as any[]).filter((w) => w.type === "OUT").reduce((s, w) => s + (w.amount ?? 0), 0);
+  const earned = (wallet as any[]).filter(isIngreso).reduce((s, w) => s + (w.points ?? w.amount ?? 0), 0);
+  const spent  = (wallet as any[]).filter(isGasto).reduce((s, w) => s + (w.points ?? w.amount ?? 0), 0);
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -132,17 +135,16 @@ const Wallet = () => {
           ))}
 
           {!isLoading && (list as any[]).map((w) => {
-            // type === 'IN' → ingreso (positivo), 'OUT' → gasto (negativo)
-            const pos = w.type === "IN";
-            const displayPoints = pos ? +(w.amount ?? 0) : -(w.amount ?? 0);
+            const pos = isIngreso(w);
+            const displayPoints = pos ? +(w.points ?? w.amount ?? 0) : -(w.points ?? w.amount ?? 0);
             return (
-              <div key={w.transaction_id ?? w.id} className="flex items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
+              <div key={w.id} className="flex items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-xl">
                   {w.emoji ?? (pos ? "♻️" : "🎁")}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold">{w.description ?? (pos ? "Reciclaje" : "Canje")}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">{w.source ?? ""}</p>
+                  <p className="truncate text-sm font-bold">{w.title ?? w.description ?? (pos ? "Reciclaje" : "Canje")}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">{w.detail ?? w.source ?? ""}</p>
                   <p className="text-[10px] text-muted-foreground">{formatDate(w.created_at)}</p>
                 </div>
                 <div className="text-right">

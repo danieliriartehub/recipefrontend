@@ -3,18 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { useAuth } from "@/lib/auth";
 import { getUserBalance, getRecentTransactions, updateProfile } from "@/lib/api";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  Bell, ChevronRight, HelpCircle, Leaf, LogOut, Pencil, Settings,
+  ChevronRight, HelpCircle, LogOut, Pencil, Settings,
   Shield, Ticket, ShoppingBag, Wallet as WalletIcon, Trophy,
-  Calculator, TreePine, Droplets, Wind, Loader2,
-  ArrowDownLeft, ArrowUpRight,
+  Calculator, ArrowDownLeft, ArrowUpRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,21 +17,11 @@ const LEVEL_NAMES = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián 
 const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 10000];
 const LEVEL_EMOJIS = ["🌱", "🌿", "🌳", "⚡", "🌍", "🏆"];
 
-// ─── Validación Zod ───────────────────────────────────────────────────────────
-const profileSchema = z.object({
-  full_name: z.string().min(1, "Este campo es obligatorio"),
-  username: z.string().min(1, "Este campo es obligatorio"),
-  email: z.string().email("Correo electrónico inválido"),
-});
-type ProfileForm = z.infer<typeof profileSchema>;
-
 // ─── Componente ───────────────────────────────────────────────────────────────
 const Profile = () => {
   const { profile, user, signOut, refreshProfile } = useAuth();
   const nav = useNavigate();
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-
   // ─── Saldo real desde user_balance (fuente única) ─────────────────────────
   const { data: balanceData, isLoading: balanceLoading } = useQuery({
     queryKey: ["balance", user?.id],
@@ -50,46 +34,9 @@ const Profile = () => {
     queryKey: ["transactions", user?.id],
     queryFn: () => getRecentTransactions(user!.id),
     enabled: !!user,
+    staleTime: 0,
   });
 
-  // ─── Formulario con validación ────────────────────────────────────────────
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isDirty, isValid },
-  } = useForm<ProfileForm>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      full_name: profile?.full_name ?? "",
-      username: profile?.username ?? "",
-      email: user?.email ?? "",
-    },
-  });
-
-  // Sincroniza cuando el perfil carga de forma asíncrona
-  useEffect(() => {
-    reset({
-      full_name: profile?.full_name ?? "",
-      username: profile?.username ?? "",
-      email: user?.email ?? "",
-    });
-  }, [profile, user, reset]);
-
-  // ─── Mutación guardar perfil ──────────────────────────────────────────────
-  const mutation = useMutation({
-    mutationFn: ({ full_name, username }: ProfileForm) =>
-      updateProfile(user!.id, { full_name, username }),
-    onSuccess: async () => {
-      await refreshProfile();
-      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
-      toast.success("Perfil actualizado correctamente");
-      setEditing(false);
-    },
-    onError: () => {
-      toast.error("No se pudieron guardar los cambios. Inténtalo de nuevo");
-    },
-  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -125,8 +72,6 @@ const Profile = () => {
     { icon: ShoppingBag, label: "Marketplace", to: "/app/marketplace" },
     { icon: Calculator, label: "Eco Simulator", to: "/app/simulator" },
     { icon: Ticket, label: "Mis cupones", to: "/app/coupons" },
-    { icon: Trophy, label: "Mi impacto", to: "/app/impact" },
-    { icon: Bell, label: "Notificaciones", to: "/app/notifications" },
     { icon: Shield, label: "Privacidad y seguridad", to: "#" },
     { icon: Settings, label: "Configuración", to: "#" },
     { icon: HelpCircle, label: "Ayuda y soporte", to: "#" },
@@ -140,21 +85,12 @@ const Profile = () => {
         <div className="relative flex items-center justify-between">
           <h1 className="font-display text-xl font-extrabold">Mi perfil</h1>
           <button
-            onClick={() =>
-              editing
-                ? handleSubmit((d) => mutation.mutate(d))()
-                : setEditing(true)
-            }
-            disabled={editing && (!isDirty || !isValid || mutation.isPending)}
-            className="flex h-10 items-center gap-1.5 rounded-full bg-white/15 px-3 backdrop-blur disabled:opacity-60"
+            onClick={() => toast.info("Próximamente podrás editar tu perfil")}
+            className="flex h-10 items-center gap-1.5 rounded-full bg-white/15 px-3 backdrop-blur"
           >
-            {mutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Pencil className="h-4 w-4" />
-            )}
+            <Pencil className="h-4 w-4" />
             <span className="text-xs font-bold">
-              {mutation.isPending ? "Guardando…" : editing ? "Guardar" : "Editar"}
+              Editar
             </span>
           </button>
         </div>
@@ -216,9 +152,6 @@ const Profile = () => {
         <div className="rounded-3xl bg-card p-4 shadow-soft">
           <div className="mb-3 flex items-center justify-between">
             <p className="font-display text-sm font-bold">Badges desbloqueados</p>
-            <Link to="/app/impact" className="text-xs font-semibold text-primary">
-              Ver impacto →
-            </Link>
           </div>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
             <p className="py-2 text-xs text-muted-foreground">
@@ -250,92 +183,7 @@ const Profile = () => {
         </div>
       </section>
 
-      {/* ── Impacto resumen ── */}
-      <section className="px-5 pt-5">
-        <div className="overflow-hidden rounded-3xl bg-card shadow-soft">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Leaf className="h-4 w-4" />
-              </span>
-              <p className="font-display text-sm font-bold">Tu impacto</p>
-            </div>
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-              Nivel #{levelIndex + 1}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-2 px-5 py-4">
-            <MiniImpact icon={<Wind className="h-4 w-4" />} value={`${impactCo2}`} unit="kg" label="CO₂ evitado" />
-            <MiniImpact icon={<TreePine className="h-4 w-4" />} value={`${impactTrees}`} unit="" label="árboles/año" />
-            <MiniImpact icon={<Droplets className="h-4 w-4" />} value={`${impactWater}`} unit="L" label="agua" />
-          </div>
-          <Link
-            to="/app/impact"
-            className="flex items-center justify-between border-t border-border px-5 py-3 transition-smooth hover:bg-muted/40"
-          >
-            <span className="text-sm font-bold text-primary">Ver impacto completo</span>
-            <ChevronRight className="h-4 w-4 text-primary" />
-          </Link>
-        </div>
-      </section>
 
-      {/* ── Formulario de edición ── */}
-      {editing && (
-        <form
-          onSubmit={handleSubmit((d) => mutation.mutate(d))}
-          className="mx-5 mt-5 space-y-3 rounded-3xl bg-card p-5 shadow-soft animate-slide-up"
-        >
-          <p className="font-display text-base font-bold">Editar datos</p>
-
-          <div className="space-y-1">
-            <Label>Nombre completo</Label>
-            <Input
-              {...register("full_name")}
-              className="h-11 rounded-xl"
-              placeholder="Tu nombre"
-            />
-            {errors.full_name && (
-              <p className="mt-1 text-xs text-destructive">{errors.full_name.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label>Nombre de usuario</Label>
-            <Input
-              {...register("username")}
-              className="h-11 rounded-xl"
-              placeholder="@usuario"
-            />
-            {errors.username && (
-              <p className="mt-1 text-xs text-destructive">{errors.username.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label>Correo electrónico</Label>
-            <Input
-              {...register("email")}
-              className="h-11 rounded-xl bg-muted/40"
-              disabled
-            />
-            {errors.email && (
-              <p className="mt-1 text-xs text-destructive">{errors.email.message}</p>
-            )}
-          </div>
-
-          <Button
-            type="submit"
-            disabled={!isDirty || !isValid || mutation.isPending}
-            className="h-11 w-full rounded-xl bg-gradient-primary font-bold"
-          >
-            {mutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              "Guardar cambios"
-            )}
-          </Button>
-        </form>
-      )}
 
       {/* ── Historial reciente (wallet_history vía getRecentTransactions) ── */}
       <section className="mx-5 mt-5 rounded-3xl bg-card p-5 shadow-soft">
@@ -354,7 +202,7 @@ const Profile = () => {
         ) : (
           <div className="space-y-2">
             {(transactions as any[]).map((tx) => {
-              const isIn = tx.type === "IN";
+              const isIn = tx.type === "IN" || (tx.title || tx.description || "").toLowerCase().includes("reciclaje") || !!tx.related_recycling_id;
               return (
                 <div
                   key={tx.id ?? tx.transaction_id}
@@ -368,14 +216,14 @@ const Profile = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">
-                      {tx.description ?? (isIn ? "Reciclaje" : "Canje")}
+                      {tx.title ?? tx.description ?? (isIn ? "Reciclaje" : "Canje")} {tx.emoji ?? ""}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
                       {new Date(tx.created_at).toLocaleDateString("es-PE")}
                     </p>
                   </div>
                   <span className={`text-sm font-bold ${isIn ? "text-primary" : "text-destructive"}`}>
-                    {isIn ? "+" : "-"}{tx.amount ?? 0}
+                    {isIn ? "+" : "-"}{tx.points ?? tx.amount ?? 0}
                   </span>
                 </div>
               );
@@ -390,6 +238,12 @@ const Profile = () => {
           <Link
             key={label}
             to={to}
+            onClick={(e) => {
+              if (to === "#") {
+                e.preventDefault();
+                toast.info("Próximamente");
+              }
+            }}
             className={`flex items-center gap-3 px-5 py-4 transition-smooth hover:bg-muted/40 ${i !== menu.length - 1 ? "border-b border-border" : ""
               }`}
           >
@@ -414,25 +268,5 @@ const Profile = () => {
     </MobileShell>
   );
 };
-
-const MiniImpact = ({
-  icon, value, unit, label,
-}: {
-  icon: React.ReactNode;
-  value: string;
-  unit: string;
-  label: string;
-}) => (
-  <div className="rounded-2xl bg-muted/40 p-3">
-    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-card text-primary">
-      {icon}
-    </span>
-    <p className="mt-2 font-display text-base font-extrabold leading-none">
-      {value}
-      <span className="ml-0.5 text-[10px] font-bold">{unit}</span>
-    </p>
-    <p className="mt-0.5 text-[10px] text-muted-foreground">{label}</p>
-  </div>
-);
 
 export default Profile;
