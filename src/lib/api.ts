@@ -103,12 +103,9 @@ export async function getWalletBalance(_userId: string) {
   return data?.current_balance ?? 0
 }
 
-/**
- * softDeleteWalletEntry — El backend no expone este endpoint aún.
- * Se conserva la firma para no romper llamadas existentes.
- */
-export async function softDeleteWalletEntry(_id: string) {
-  console.warn('[RECIPE] softDeleteWalletEntry: endpoint no disponible en backend aún')
+export async function softDeleteWalletEntry(id: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).delete(`/api/v1/wallet/entries/${id}`)
 }
 
 // ─── RECICLAJES ───────────────────────────────────────────────────────────────

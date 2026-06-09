@@ -20,13 +20,13 @@ import {
   QrCode,
   Sparkles,
   Navigation,
-  ScanLine,
   ShoppingBag,
   Wallet as WalletIcon,
   Target,
   Calculator,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // ─── Constantes de niveles (fuente única de verdad) ─────────────────────────
 const LEVEL_NAMES = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
@@ -212,6 +212,7 @@ const Dashboard = () => {
     queryKey: ["wallet", user?.id],
     queryFn: () => getWalletEntries(user!.id),
     enabled: !!user,
+    staleTime: 0,
   });
 
   const { data: missions = [], isLoading: loadingMissions } = useQuery({
@@ -276,9 +277,10 @@ const Dashboard = () => {
       day.setDate(now.getDate() - (6 - i)); // i=0 → hace 6 días, i=6 → hoy
       const dayStr = toLocalDate(day);
       const label = DAY_LABELS[day.getDay()];
+      const isIngreso = (e: any) => e.type === "IN" || (e.title || e.description || "").toLowerCase().includes("reciclaje") || !!e.related_recycling_id;
       const earned = (wallet as any[])
-        .filter((e) => e.points > 0 && (e.created_at as string | undefined)?.startsWith(dayStr))
-        .reduce((sum, e) => sum + ((e.points as number) ?? 0), 0);
+        .filter((e) => isIngreso(e) && (e.created_at as string | undefined)?.startsWith(dayStr))
+        .reduce((sum, e) => sum + ((e.points ?? e.amount ?? 0) as number), 0);
       return { label, value: earned, isToday: i === 6 };
     });
   }, [wallet]);
@@ -317,8 +319,8 @@ const Dashboard = () => {
           >
             <WalletIcon className="h-5 w-5" />
           </Link>
-          <Link
-            to="/app/notifications"
+          <button
+            onClick={() => toast.info("Próximamente")}
             aria-label="Notificaciones"
             className="relative flex h-10 w-10 items-center justify-center rounded-full bg-muted hover:bg-muted/70"
           >
@@ -326,7 +328,7 @@ const Dashboard = () => {
             {hasUnread && (
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent animate-pulse-glow" />
             )}
-          </Link>
+          </button>
         </div>
       </header>
 
@@ -426,18 +428,6 @@ const Dashboard = () => {
       <section className="px-5 pt-4">
         <div className="grid grid-cols-2 gap-3">
           <Link
-            to="/app/scan"
-            className="group relative overflow-hidden rounded-3xl bg-gradient-primary p-4 text-primary-foreground shadow-glow transition-bounce hover:-translate-y-0.5"
-          >
-            <ScanLine className="h-7 w-7" />
-            <p className="mt-3 font-display text-base font-extrabold leading-tight">
-              Escanear<br />residuo
-            </p>
-            <p className="text-[10px] opacity-85">IA al instante</p>
-            <span className="absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-white/10 blur-xl" />
-          </Link>
-
-          <Link
             to="/app/map"
             className="rounded-3xl bg-card p-4 shadow-card transition-bounce hover:-translate-y-0.5"
           >
@@ -478,18 +468,15 @@ const Dashboard = () => {
 
           <Link
             to="/app/simulator"
-            className="col-span-2 flex items-center gap-4 rounded-3xl border border-primary/20 bg-gradient-to-r from-primary/10 to-accent/10 p-4 shadow-soft transition-bounce hover:-translate-y-0.5"
+            className="rounded-3xl bg-card p-4 shadow-card transition-bounce hover:-translate-y-0.5"
           >
-            <span className="flex h-12 w-12 flex-none items-center justify-center rounded-2xl bg-gradient-primary text-primary-foreground shadow-glow">
-              <Calculator className="h-6 w-6" />
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground">
+              <Calculator className="h-5 w-5" />
             </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-base font-extrabold leading-tight">Eco Simulator</p>
-              <p className="text-[10px] text-muted-foreground">
-                Calcula puntos e impacto antes de reciclar
-              </p>
-            </div>
-            <ChevronRight className="h-5 w-5 flex-none text-primary" />
+            <p className="mt-3 font-display text-base font-extrabold leading-tight">
+              Eco<br />Simulator
+            </p>
+            <p className="text-[10px] text-muted-foreground">Calcula tu impacto</p>
           </Link>
         </div>
       </section>
@@ -497,7 +484,7 @@ const Dashboard = () => {
       {/* ── Centro recomendado — más cercano según geolocalización ── */}
       <section className="px-5 pt-5">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="font-display text-sm font-bold text-muted-foreground">RECOMENDADO POR IA</h3>
+          <h3 className="font-display text-sm font-bold text-muted-foreground">RECOMENDADO</h3>
           <Link to="/app/map" className="text-xs font-semibold text-primary">Ver mapa →</Link>
         </div>
 
@@ -557,123 +544,7 @@ const Dashboard = () => {
         )}
       </section>
 
-      {/* ── Misiones del día ── */}
-      <section className="px-5 pt-5">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="font-display text-sm font-bold text-muted-foreground">MISIONES DE HOY</h3>
-          <span className="text-xs font-bold text-primary">
-            {completedDaily}/{dailyMissions.length}
-          </span>
-        </div>
 
-        <div className="rounded-3xl bg-card p-4 shadow-soft">
-          {loadingMissions ? (
-            <div className="space-y-2.5">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-[46px]" />)}
-            </div>
-          ) : dailyMissions.length === 0 ? (
-            /* Usuario nuevo o sin misiones activas */
-            <div className="py-4 text-center">
-              <p className="text-2xl">🎯</p>
-              <p className="mt-2 text-sm font-semibold">Sin misiones activas hoy</p>
-              <p className="text-xs text-muted-foreground">
-                Vuelve mañana o recicla para desbloquear retos
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {dailyMissions.map((m) => (
-                <div
-                  key={m.id}
-                  className={`flex items-center gap-3 rounded-2xl p-2.5 transition-smooth ${m.done ? "bg-success/10" : "bg-muted/40"
-                    }`}
-                >
-                  <span className="text-xl">{m.emoji}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className={`truncate text-sm font-semibold ${m.done && "line-through opacity-70"}`}>
-                      {m.title}
-                    </p>
-                  </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${m.done
-                        ? "bg-success text-success-foreground"
-                        : "bg-primary/15 text-primary"
-                      }`}
-                  >
-                    {m.done ? "✓" : `+${m.xp}xp`}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ── Meta semanal + gráfico de actividad ── */}
-      <section className="px-5 pt-5">
-        <div className="rounded-3xl bg-card p-4 shadow-soft">
-          {/* Encabezado kg / meta */}
-          <div className="flex items-end justify-between">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" />
-              <div>
-                <p className="text-xs text-muted-foreground">Meta semanal</p>
-                <p className="font-display text-xl font-extrabold">
-                  {totalKgFinal.toFixed(1)}{" "}
-                  <span className="text-sm text-muted-foreground">/ {weeklyGoal} kg</span>
-                </p>
-              </div>
-            </div>
-            <p className="text-sm font-bold text-primary">{weeklyPct}%</p>
-          </div>
-
-          {/* Gráfico: puntos ganados por día (últimos 7 días desde wallet_entries) */}
-          {loadingWallet ? (
-            <div className="mt-3 h-16 animate-pulse rounded-xl bg-muted" />
-          ) : wallet.length === 0 ? (
-            /* Sin entradas de wallet → empty state */
-            <div className="mt-3 flex flex-col items-center justify-center py-4 text-center">
-              <p className="text-2xl">🌱</p>
-              <p className="mt-1 text-sm text-muted-foreground">No hay datos disponibles aún</p>
-            </div>
-          ) : (
-            <div className="mt-3 flex h-16 items-end justify-between gap-1.5">
-              {weeklyBars.map((bar, i) => {
-                const h = bar.value === 0 ? 8 : Math.max(12, (bar.value / maxBar) * 100);
-                return (
-                  <div key={i} className="flex flex-1 flex-col items-center gap-1">
-                    <div
-                      className={`w-full rounded-t-md transition-all duration-500 ${bar.value === 0
-                          ? "bg-muted"
-                          : bar.isToday
-                            ? "bg-gradient-primary"
-                            : "bg-primary/30"
-                        }`}
-                      style={{ height: `${h}%` }}
-                    />
-                    <span
-                      className={`text-[10px] ${bar.isToday ? "font-bold text-primary" : "text-muted-foreground"
-                        }`}
-                    >
-                      {bar.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ── Reto USIL — próximamente ── */}
-      <section className="px-5 pt-4 pb-2">
-        <div className="rounded-2xl bg-card p-4 shadow-soft">
-          <p className="text-sm font-bold">🏆 Reto USIL</p>
-          <p className="text-xs text-muted-foreground">
-            Próximamente · Compite con tu facultad
-          </p>
-        </div>
-      </section>
 
     </MobileShell>
   );
