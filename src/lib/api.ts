@@ -270,3 +270,9 @@ export async function getScanHistory(_userId: string) {
   const token = await getToken()
   return backendApi.withToken(token).get<unknown[]>('/api/v1/scans/')
 }
+
+// ─── PUBLICIDAD ───────────────────────────────────────────────────────────────
+
+export async function getActiveBanners() {
+  return backendApi.get<{id: string, business_name: string, banner_url: string, website_url?: string}[]>('/api/v1/aliados/banners')
+}
