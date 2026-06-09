@@ -24,7 +24,6 @@ import {
   Wallet as WalletIcon,
   Target,
   Calculator,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,28 +66,9 @@ const AdBanners = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  const [dismissed, setDismissed] = useState<Record<string, boolean>>(() => {
-    try {
-      const stored = sessionStorage.getItem("dismissed_banners");
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
-    }
-  });
+  if (banners.length === 0) return null;
 
-  const handleDismiss = (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const newDismissed = { ...dismissed, [id]: true };
-    setDismissed(newDismissed);
-    sessionStorage.setItem("dismissed_banners", JSON.stringify(newDismissed));
-  };
-
-  const visibleBanners = banners.filter((b) => !dismissed[b.id]);
-
-  if (visibleBanners.length === 0) return null;
-
-  const banner = visibleBanners[0];
+  const banner = banners[0];
 
   return (
     <section className="px-5 pt-4">
@@ -100,12 +80,7 @@ const AdBanners = () => {
         ) : (
           <img src={banner.banner_url} alt={banner.business_name} className="w-full aspect-[21/9] object-cover" />
         )}
-        <button
-          onClick={(e) => handleDismiss(banner.id, e)}
-          className="absolute top-2 right-2 bg-black/40 hover:bg-black/60 p-1.5 rounded-full text-white backdrop-blur-sm transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
+
         <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded shadow-sm text-foreground">
           Publicidad
         </div>
@@ -221,7 +196,7 @@ const Dashboard = () => {
     enabled: !!user,
   });
 
-  const { data: notifications = [], isLoading: loadingNotifs } = useQuery({
+  const { data: notifications = [] } = useQuery({
     queryKey: ["notifications", user?.id],
     queryFn: () => getNotifications(user!.id),
     enabled: !!user,
@@ -291,7 +266,7 @@ const Dashboard = () => {
   const weeklyPct = Math.min(100, Math.round((totalKgFinal / weeklyGoal) * 100));
 
   // ── Banner IA ─────────────────────────────────────────────────────────────
-  const topNotif = (notifications as any[])[0] ?? null;
+
   const hasUnread = (notifications as any[]).some((n) => !n.read);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -393,36 +368,6 @@ const Dashboard = () => {
       {/* ── Banners Publicitarios ── */}
       <AdBanners />
 
-      {/* ── Banner IA / notificaciones ── */}
-      <section className="px-5 pt-4">
-        {loadingNotifs ? (
-          <Skeleton className="h-[60px] rounded-2xl" />
-        ) : topNotif ? (
-          <Link
-            to="/app/notifications"
-            className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 transition-bounce hover:-translate-y-0.5"
-          >
-            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                {topNotif.type} · IA
-              </p>
-              <p className="truncate text-sm font-bold">{topNotif.title}</p>
-            </div>
-            <ChevronRight className="h-4 w-4 flex-none text-primary" />
-          </Link>
-        ) : (
-          /* Sin notificaciones reales → empty state */
-          <div className="flex flex-col items-center justify-center rounded-2xl bg-muted/40 py-5 text-center">
-            <p className="text-2xl">🌱</p>
-            <p className="mt-2 text-sm font-semibold text-muted-foreground">
-              No hay datos disponibles aún
-            </p>
-          </div>
-        )}
-      </section>
 
       {/* ── Quick actions (estático, no requiere datos remotos) ── */}
       <section className="px-5 pt-4">
