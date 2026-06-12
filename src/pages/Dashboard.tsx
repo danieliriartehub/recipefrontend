@@ -85,7 +85,7 @@ const AdBanners = () => {
     if (visibleBanners.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % visibleBanners.length);
-    }, 4000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [visibleBanners.length]);
 
@@ -129,6 +129,26 @@ const AdBanners = () => {
             </span>
           )}
         </div>
+        {visibleBanners.length > 1 && (
+          <div className="absolute bottom-2 right-2 bg-black/40 rounded-full p-1 backdrop-blur-sm z-10 flex items-center justify-center">
+            <svg className="w-4 h-4 -rotate-90" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
+              <circle
+                key={currentIndex}
+                cx="12"
+                cy="12"
+                r="10"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeDasharray="62.83"
+                strokeDashoffset="62.83"
+              >
+                <animate attributeName="stroke-dashoffset" from="62.83" to="0" dur="5s" fill="freeze" />
+              </circle>
+            </svg>
+          </div>
+        )}
       </div>
     </section>
   );
