@@ -271,5 +271,5 @@ export async function getScanHistory(_userId: string) {
 // ─── PUBLICIDAD ───────────────────────────────────────────────────────────────
 
 export async function getActiveBanners() {
-  return backendApi.get<{id: string, business_name: string, banner_url: string, website_url?: string}[]>('/api/v1/aliados/banners')
+  return backendApi.get<{id: string, merchant_partner_id: string, title?: string, business_name: string, banner_url: string, link_url?: string, display_order: number}[]>('/api/v1/aliados/banners')
 }
