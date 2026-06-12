@@ -24,6 +24,7 @@ import {
   Wallet as WalletIcon,
   Target,
   Calculator,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
