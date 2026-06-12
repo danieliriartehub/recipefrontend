@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
+import { getActiveBanners } from "@/lib/api";
 import { MARKETPLACE, type MarketItem } from "@/data/mock";
 import { useAuth } from "@/lib/auth";
 import { Search, Sparkles, Wallet } from "lucide-react";
@@ -11,6 +13,12 @@ const categories = ["Todos", "Producto", "Cafetería", "Transporte", "Experienci
 const Marketplace = () => {
   const { profile } = useAuth();
   const userPoints = profile?.points ?? 0;
+
+  const { data: banners = [] } = useQuery({
+    queryKey: ["activeBanners"],
+    queryFn: getActiveBanners,
+    staleTime: 1000 * 60 * 5,
+  });
 
   const [cat, setCat] = useState<(typeof categories)[number]>("Todos");
   const [query, setQuery] = useState("");
@@ -104,30 +112,51 @@ const Marketplace = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 pb-2">
-            {list.map((m) => (
-              <Link
-                key={m.id}
-                to={`/app/marketplace/${m.id}`}
-                className="flex flex-col overflow-hidden rounded-3xl bg-card shadow-soft transition-bounce hover:-translate-y-0.5 active:scale-[0.98]"
-              >
-                <div className="relative flex h-24 items-center justify-center bg-gradient-soft text-5xl">
-                  {m.emoji}
-                  {m.tag && (
-                    <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[9px] font-extrabold uppercase text-accent-foreground">
-                      {m.tag}
-                    </span>
+            {list.map((m, index) => {
+              const showAd = index > 0 && index % 4 === 0;
+              const adIndex = Math.floor(index / 4) - 1;
+              const banner = banners.length > 0 ? banners[adIndex % banners.length] : null;
+
+              return (
+                <React.Fragment key={m.id}>
+                  {showAd && banner && (
+                    <div className="col-span-2 relative rounded-2xl overflow-hidden shadow-card group my-1">
+                      {banner.link_url || banner.website_url ? (
+                        <a href={banner.link_url || banner.website_url} target="_blank" rel="noopener noreferrer" className="block w-full">
+                          <img src={banner.banner_url} alt={banner.title || banner.business_name} className="w-full aspect-[21/9] object-cover animate-in fade-in duration-500" />
+                        </a>
+                      ) : (
+                        <img src={banner.banner_url} alt={banner.title || banner.business_name} className="w-full aspect-[21/9] object-cover animate-in fade-in duration-500" />
+                      )}
+                      <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded shadow-sm text-foreground z-10">
+                        Patrocinado
+                      </div>
+                    </div>
                   )}
-                </div>
-                <div className="flex flex-1 flex-col p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{m.brand}</p>
-                  <p className="mt-0.5 line-clamp-2 text-sm font-bold leading-tight">{m.title}</p>
-                  <p className="mt-1 line-clamp-2 flex-1 text-[11px] text-muted-foreground">{m.description}</p>
-                  <span className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-gradient-primary text-sm font-bold text-primary-foreground shadow-soft">
-                    {m.cost} pts
-                  </span>
-                </div>
-              </Link>
-            ))}
+                  <Link
+                    to={`/app/marketplace/${m.id}`}
+                    className="flex flex-col overflow-hidden rounded-3xl bg-card shadow-soft transition-bounce hover:-translate-y-0.5 active:scale-[0.98]"
+                  >
+                    <div className="relative flex h-24 items-center justify-center bg-gradient-soft text-5xl">
+                      {m.emoji}
+                      {m.tag && (
+                        <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[9px] font-extrabold uppercase text-accent-foreground">
+                          {m.tag}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-1 flex-col p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{m.brand}</p>
+                      <p className="mt-0.5 line-clamp-2 text-sm font-bold leading-tight">{m.title}</p>
+                      <p className="mt-1 line-clamp-2 flex-1 text-[11px] text-muted-foreground">{m.description}</p>
+                      <span className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-gradient-primary text-sm font-bold text-primary-foreground shadow-soft">
+                        {m.cost} pts
+                      </span>
+                    </div>
+                  </Link>
+                </React.Fragment>
+              );
+            })}
           </div>
         )}
 

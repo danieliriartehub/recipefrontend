@@ -26,6 +26,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 // ─── Constantes de niveles (fuente única de verdad) ─────────────────────────
 const LEVEL_NAMES = ["Semilla", "Brote", "Sembrador", "Eco Warrior", "Guardián Verde", "Leyenda Eco"];
@@ -66,26 +67,147 @@ const AdBanners = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  if (banners.length === 0) return null;
+  const [dismissed, setDismissed] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = sessionStorage.getItem("dismissed_banners");
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
 
-  const banner = banners[0];
+  const [currentIndex, setCurrentIndex] = useState(0);
 
+  const visibleBanners = banners.filter((b: any) => !dismissed[b.id]);
+
+  useEffect(() => {
+    if (visibleBanners.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % visibleBanners.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [visibleBanners.length]);
+
+  if (visibleBanners.length === 0) return null;
+
+  const banner = visibleBanners[currentIndex] || visibleBanners[0];
+
+  const handleDismiss = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const newDismissed = { ...dismissed, [id]: true };
+    setDismissed(newDismissed);
+    sessionStorage.setItem("dismissed_banners", JSON.stringify(newDismissed));
+    
+    // Adjust index if needed
+    if (currentIndex >= visibleBanners.length - 1) {
+      setCurrentIndex(Math.max(0, visibleBanners.length - 2));
+    }
+  };
   return (
     <section className="px-5 pt-4">
-      <div className="relative rounded-2xl overflow-hidden shadow-card group">
-        {banner.website_url ? (
-          <a href={banner.website_url} target="_blank" rel="noopener noreferrer" className="block w-full">
-            <img src={banner.banner_url} alt={banner.business_name} className="w-full aspect-[21/9] object-cover" />
+      <div className="relative rounded-2xl overflow-hidden shadow-card group transition-all duration-500">
+        {banner.link_url || banner.website_url ? (
+          <a href={banner.link_url || banner.website_url} target="_blank" rel="noopener noreferrer" className="block w-full">
+            <img key={banner.id} src={banner.banner_url} alt={banner.title || banner.business_name} className="w-full aspect-[21/9] object-cover animate-in fade-in duration-500" />
           </a>
         ) : (
-          <img src={banner.banner_url} alt={banner.business_name} className="w-full aspect-[21/9] object-cover" />
+          <img key={banner.id} src={banner.banner_url} alt={banner.title || banner.business_name} className="w-full aspect-[21/9] object-cover animate-in fade-in duration-500" />
         )}
-
-        <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded shadow-sm text-foreground">
+        <button
+          onClick={(e) => handleDismiss(banner.id, e)}
+          className="absolute top-2 right-2 bg-black/40 hover:bg-black/60 p-1.5 rounded-full text-white backdrop-blur-sm transition-colors z-10"
+        >
+          <X className="w-4 h-4" />
+        </button>
+        <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded shadow-sm text-foreground z-10 flex items-center gap-2">
           Publicidad
+          {visibleBanners.length > 1 && (
+            <span className="text-[9px] opacity-70 border-l border-border pl-2">
+              {currentIndex + 1} / {visibleBanners.length}
+            </span>
+          )}
         </div>
       </div>
     </section>
+  );
+};
+
+// ─── Modal de Banner de Sesión ─────────────────────────────────────────────────
+const SessionBannerModal = () => {
+  const { data: banners = [] } = useQuery({
+    queryKey: ["activeBanners"],
+    queryFn: getActiveBanners,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedBanner, setSelectedBanner] = useState<any>(null);
+
+  useEffect(() => {
+    if (banners.length === 0) return;
+    
+    // Check if shown in this session
+    const hasShown = sessionStorage.getItem('session_banner_shown');
+    if (!hasShown) {
+      // Pick a random banner
+      const randomBanner = banners[Math.floor(Math.random() * banners.length)];
+      setSelectedBanner(randomBanner);
+      setIsOpen(true);
+      sessionStorage.setItem('session_banner_shown', 'true');
+    }
+  }, [banners]);
+
+  if (!isOpen || !selectedBanner) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogContent className="w-[90%] max-w-sm p-0 overflow-hidden border-0 bg-transparent shadow-2xl rounded-3xl">
+        <DialogTitle className="sr-only">Anuncio de {selectedBanner.business_name}</DialogTitle>
+        <DialogDescription className="sr-only">Publicidad destacada</DialogDescription>
+        <div className="relative rounded-3xl overflow-hidden bg-background">
+          <button 
+            onClick={() => setIsOpen(false)}
+            className="absolute top-3 right-3 z-10 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-md transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          
+          <img 
+            src={selectedBanner.banner_url} 
+            alt={selectedBanner.title || selectedBanner.business_name} 
+            className="w-full object-cover"
+            style={{ maxHeight: '60vh' }}
+          />
+          
+          <div className="p-5 bg-background">
+            <h3 className="font-display font-extrabold text-xl mb-1">{selectedBanner.title || selectedBanner.business_name}</h3>
+            <p className="text-sm text-muted-foreground mb-5">¡Descubre lo que nuestro aliado tiene para ti!</p>
+            
+            <div className="flex gap-3">
+              {(selectedBanner.link_url || selectedBanner.website_url) ? (
+                <a 
+                  href={selectedBanner.link_url || selectedBanner.website_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  onClick={() => setIsOpen(false)}
+                  className="flex-1 bg-gradient-primary text-primary-foreground text-center py-3 rounded-xl font-bold shadow-glow hover:opacity-90 transition-opacity"
+                >
+                  Ver Promoción
+                </a>
+              ) : (
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="flex-1 bg-gradient-primary text-primary-foreground py-3 rounded-xl font-bold shadow-glow hover:opacity-90 transition-opacity"
+                >
+                  ¡Entendido!
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -490,6 +612,9 @@ const Dashboard = () => {
       </section>
 
 
+
+      {/* ── Modal de Publicidad por Sesión ── */}
+      <SessionBannerModal />
 
     </MobileShell>
   );
