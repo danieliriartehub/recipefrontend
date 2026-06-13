@@ -151,6 +151,21 @@ export async function getUserCoupons(_userId: string) {
   return backendApi.withToken(token).get<unknown[]>('/api/v1/marketplace/coupons')
 }
 
+export async function getActiveCoupons() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/coupons/active')
+}
+
+export async function getUsedCoupons() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/coupons/history')
+}
+
+export async function getExpiredCoupons() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/coupons/expired')
+}
+
 export async function redeemReward(userId: string, rewardId: string, _code: string) {
   const token = await getToken()
   return backendApi.withToken(token).post<unknown>('/api/v1/marketplace/redeem', {
