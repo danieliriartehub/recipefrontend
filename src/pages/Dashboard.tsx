@@ -68,18 +68,9 @@ const AdBanners = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  const [dismissed, setDismissed] = useState<Record<string, boolean>>(() => {
-    try {
-      const stored = sessionStorage.getItem("dismissed_banners");
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
-    }
-  });
-
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const visibleBanners = banners.filter((b: any) => !dismissed[b.id]);
+  const visibleBanners = banners;
 
   useEffect(() => {
     if (visibleBanners.length <= 1) return;
@@ -93,18 +84,6 @@ const AdBanners = () => {
 
   const banner = visibleBanners[currentIndex] || visibleBanners[0];
 
-  const handleDismiss = (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const newDismissed = { ...dismissed, [id]: true };
-    setDismissed(newDismissed);
-    sessionStorage.setItem("dismissed_banners", JSON.stringify(newDismissed));
-    
-    // Adjust index if needed
-    if (currentIndex >= visibleBanners.length - 1) {
-      setCurrentIndex(Math.max(0, visibleBanners.length - 2));
-    }
-  };
   return (
     <section className="px-5 pt-4">
       <div className="relative rounded-2xl overflow-hidden shadow-card group transition-all duration-500">
@@ -115,12 +94,6 @@ const AdBanners = () => {
         ) : (
           <img key={banner.id} src={banner.banner_url} alt={banner.title || banner.business_name} className="w-full aspect-[21/9] object-cover animate-in fade-in duration-500" />
         )}
-        <button
-          onClick={(e) => handleDismiss(banner.id, e)}
-          className="absolute top-2 right-2 bg-black/40 hover:bg-black/60 p-1.5 rounded-full text-white backdrop-blur-sm transition-colors z-10"
-        >
-          <X className="w-4 h-4" />
-        </button>
         <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded shadow-sm text-foreground z-10 flex items-center gap-2">
           Publicidad
           {visibleBanners.length > 1 && (
@@ -168,15 +141,10 @@ const SessionBannerModal = () => {
   useEffect(() => {
     if (banners.length === 0) return;
     
-    // Check if shown in this session
-    const hasShown = sessionStorage.getItem('session_banner_shown');
-    if (!hasShown) {
-      // Pick a random banner
-      const randomBanner = banners[Math.floor(Math.random() * banners.length)];
-      setSelectedBanner(randomBanner);
-      setIsOpen(true);
-      sessionStorage.setItem('session_banner_shown', 'true');
-    }
+    // Pick a random banner on mount
+    const randomBanner = banners[Math.floor(Math.random() * banners.length)];
+    setSelectedBanner(randomBanner);
+    setIsOpen(true);
   }, [banners]);
 
   if (!isOpen || !selectedBanner) return null;
