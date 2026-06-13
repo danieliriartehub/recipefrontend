@@ -44,19 +44,26 @@ export const GlobalRandomAd = () => {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-transparent border-none shadow-none [&>button]:hidden z-[9999]">
+      <DialogContent className="sm:max-w-md p-0 bg-transparent border-none shadow-none [&>button]:hidden">
         {/* Usamos VisuallyHidden para el Title y Description exigidos por accesibilidad */}
         <DialogTitle className="sr-only">Anuncio de Aliado</DialogTitle>
         <DialogDescription className="sr-only">Publicidad de un aliado de Recipe</DialogDescription>
         
-        <div className="relative group animate-in zoom-in-95 duration-300">
+        <div className="relative group animate-in zoom-in-95 duration-300 flex flex-col items-end gap-3">
+          <button 
+            onClick={() => setIsOpen(false)}
+            className="bg-black/40 hover:bg-black/60 text-white rounded-full p-2 backdrop-blur-md transition-all shadow-xl border border-white/10"
+            aria-label="Cerrar anuncio"
+          >
+            <X className="w-5 h-5" />
+          </button>
           
           {currentBanner.link_url || currentBanner.website_url ? (
             <a 
               href={currentBanner.link_url || currentBanner.website_url} 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="block bg-white rounded-2xl overflow-hidden shadow-2xl border border-white/20 hover:scale-[1.02] transition-transform duration-300"
+              className="block w-full bg-white rounded-2xl overflow-hidden shadow-2xl border border-white/20 hover:scale-[1.02] transition-transform duration-300"
               onClick={handleBannerClick}
             >
               <div className="px-4 py-2 bg-gradient-to-r from-emerald-500/10 to-transparent border-b flex justify-between items-center">
@@ -91,7 +98,7 @@ export const GlobalRandomAd = () => {
               </div>
             </a>
           ) : (
-            <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-white/20">
+            <div className="w-full bg-white rounded-2xl overflow-hidden shadow-2xl border border-white/20">
               <div className="px-4 py-2 bg-gradient-to-r from-emerald-500/10 to-transparent border-b flex justify-between items-center">
                 <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
                   <span className="relative flex h-2 w-2">
