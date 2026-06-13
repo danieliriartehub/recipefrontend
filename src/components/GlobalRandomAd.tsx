@@ -44,41 +44,65 @@ export const GlobalRandomAd = () => {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-transparent border-none shadow-none [&>button]:hidden z-[100]">
+      <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-transparent border-none shadow-none [&>button]:hidden z-[9999]">
         {/* Usamos VisuallyHidden para el Title y Description exigidos por accesibilidad */}
         <DialogTitle className="sr-only">Anuncio de Aliado</DialogTitle>
         <DialogDescription className="sr-only">Publicidad de un aliado de Recipe</DialogDescription>
         
         <div className="relative group animate-in zoom-in-95 duration-300">
-          <button 
-            onClick={() => setIsOpen(false)}
-            className="absolute top-2 right-2 z-50 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 backdrop-blur-sm transition-all"
-            aria-label="Cerrar anuncio"
-          >
-            <X className="w-5 h-5" />
-          </button>
           
-          <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-white/20">
-            <div className="px-4 py-2 bg-gradient-to-r from-emerald-500/10 to-transparent border-b flex justify-between items-center">
-              <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          {currentBanner.link_url || currentBanner.website_url ? (
+            <a 
+              href={currentBanner.link_url || currentBanner.website_url} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="block bg-white rounded-2xl overflow-hidden shadow-2xl border border-white/20 hover:scale-[1.02] transition-transform duration-300"
+              onClick={handleBannerClick}
+            >
+              <div className="px-4 py-2 bg-gradient-to-r from-emerald-500/10 to-transparent border-b flex justify-between items-center">
+                <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  Patrocinado {currentBanner.is_ml_targeted && "✨"}
                 </span>
-                Patrocinado {currentBanner.is_ml_targeted && "✨"}
-              </span>
-              <span className="text-[10px] text-muted-foreground font-medium">Recomendado por ML</span>
-            </div>
-            
-            {currentBanner.link_url || currentBanner.website_url ? (
-              <a href={currentBanner.link_url || currentBanner.website_url} target="_blank" rel="noopener noreferrer" className="block w-full overflow-hidden" onClick={handleBannerClick}>
+                <span className="text-[10px] text-muted-foreground font-medium">Recomendado por ML</span>
+              </div>
+              
+              <div className="w-full overflow-hidden">
                 <img 
                   src={currentBanner.banner_url} 
                   alt={currentBanner.title || "Banner patrocinado"} 
-                  className="w-full aspect-[4/3] object-cover hover:scale-105 transition-transform duration-700" 
+                  className="w-full aspect-[4/3] object-cover" 
                 />
-              </a>
-            ) : (
+              </div>
+              
+              <div className="p-5 bg-white">
+                <h3 className="font-bold text-lg mb-1.5 text-slate-800 leading-tight">
+                  {currentBanner.title || "Oferta Exclusiva"}
+                </h3>
+                <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
+                  ¡Aprovecha tus Puntos ECO para obtener beneficios exclusivos con nuestros aliados!
+                </p>
+                <div className="mt-4 flex items-center justify-center w-full bg-emerald-500 text-white py-2.5 rounded-xl font-semibold hover:bg-emerald-600 transition-all shadow-sm shadow-emerald-500/20">
+                  Ver oferta ahora
+                </div>
+              </div>
+            </a>
+          ) : (
+            <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-white/20">
+              <div className="px-4 py-2 bg-gradient-to-r from-emerald-500/10 to-transparent border-b flex justify-between items-center">
+                <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  Patrocinado {currentBanner.is_ml_targeted && "✨"}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-medium">Recomendado por ML</span>
+              </div>
+              
               <div className="w-full overflow-hidden">
                 <img 
                   src={currentBanner.banner_url} 
@@ -86,28 +110,17 @@ export const GlobalRandomAd = () => {
                   className="w-full aspect-[4/3] object-cover hover:scale-105 transition-transform duration-700" 
                 />
               </div>
-            )}
-            
-            <div className="p-5 bg-white">
-              <h3 className="font-bold text-lg mb-1.5 text-slate-800 leading-tight">
-                {currentBanner.title || "Oferta Exclusiva"}
-              </h3>
-              <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
-                ¡Aprovecha tus Puntos ECO para obtener beneficios exclusivos con nuestros aliados!
-              </p>
-              {(currentBanner.link_url || currentBanner.website_url) && (
-                <a 
-                  href={currentBanner.link_url || currentBanner.website_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  onClick={handleBannerClick} 
-                  className="mt-4 flex items-center justify-center w-full bg-emerald-500 text-white py-2.5 rounded-xl font-semibold hover:bg-emerald-600 active:scale-95 transition-all shadow-sm shadow-emerald-500/20"
-                >
-                  Ver oferta ahora
-                </a>
-              )}
+              
+              <div className="p-5 bg-white">
+                <h3 className="font-bold text-lg mb-1.5 text-slate-800 leading-tight">
+                  {currentBanner.title || "Oferta Exclusiva"}
+                </h3>
+                <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
+                  ¡Aprovecha tus Puntos ECO para obtener beneficios exclusivos con nuestros aliados!
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
