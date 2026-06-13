@@ -1,7 +1,7 @@
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
 import { useAuth } from "@/lib/auth";
-import { getUserCoupons } from "@/lib/api";
+import { getActiveCoupons, getUsedCoupons, getExpiredCoupons } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Copy, Loader2 } from "lucide-react";
@@ -27,13 +27,36 @@ const Coupons = () => {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("activos");
 
+  const fetchCoupons = () => {
+    if (tab === "activos") return getActiveCoupons();
+    if (tab === "usados") return getUsedCoupons();
+    return getExpiredCoupons();
+  };
+
   const { data: coupons = [], isLoading } = useQuery({
-    queryKey: ["coupons", user?.id],
-    queryFn: () => getUserCoupons(user!.id),
+    queryKey: ["coupons", tab, user?.id],
+    queryFn: fetchCoupons,
     enabled: !!user,
   });
 
-  const filtered = coupons.filter((c) => c.status === statusMap[tab]);
+  const getEmptyText = () => {
+    if (tab === "activos") return "No tienes cupones activos todavía.";
+    if (tab === "usados") return "No tienes cupones utilizados todavía.";
+    return "No tienes cupones expirados.";
+  };
+
+  const getDateLabel = () => {
+    if (tab === "activos") return "Expira: ";
+    if (tab === "usados") return "Usado: ";
+    return "Expiró: ";
+  };
+
+  const getDateValue = (c: any) => {
+    const d = tab === "activos" || tab === "expirados" ? (c.expires_at || c.valid_until) : (c.used_at || c.redeemed_at);
+    return d ? new Date(d).toLocaleDateString("es-PE", {
+      day: "numeric", month: "short", year: "numeric",
+    }) : "—";
+  };
 
   return (
     <MobileShell>
@@ -62,13 +85,8 @@ const Coupons = () => {
           ))}
 
           {/* Lista de cupones */}
-          {!isLoading && filtered.map((c) => {
-            // La query incluye rewards(*) gracias al join en getUserCoupons
-            const r = (c as any).rewards as {
-              emoji: string;
-              brand: string;
-              title: string;
-            } | null;
+          {!isLoading && Array.isArray(coupons) && coupons.map((c: any) => {
+            const r = c.rewards || c.reward || null;
 
             return (
               <div key={c.id} className="overflow-hidden rounded-2xl bg-card shadow-soft">
@@ -82,41 +100,39 @@ const Coupons = () => {
                     </p>
                     <p className="truncate text-sm font-bold">{r?.title ?? "Recompensa"}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      {c.redeemed_at
-                        ? new Date(c.redeemed_at).toLocaleDateString("es-PE", {
-                            day: "numeric", month: "short", year: "numeric",
-                          })
-                        : "—"}
+                      {getDateLabel()}{getDateValue(c)} • {c.points_spent ?? r?.points_cost ?? c.points_cost ?? 0} pts
                     </p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${statusBadge(c.status)}`}>
-                    {c.status}
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${statusBadge(c.status || statusMap[tab])}`}>
+                    {c.status || statusMap[tab]}
                   </span>
                 </div>
 
-                {c.status === "activo" && c.code && (
-                  <button
-                    onClick={() => {
-                      navigator.clipboard?.writeText(c.code);
-                      toast.success("Código copiado");
-                    }}
-                    className="flex w-full items-center justify-between border-t border-dashed border-border bg-muted/40 px-4 py-3"
-                  >
+                {c.code && (
+                  <div className="flex w-full items-center justify-between border-t border-dashed border-border bg-muted/40 px-4 py-3">
                     <span className="font-mono text-sm font-bold tracking-wider">{c.code}</span>
-                    <span className="flex items-center gap-1 text-xs font-semibold text-primary">
-                      <Copy className="h-3.5 w-3.5" /> Copiar
-                    </span>
-                  </button>
+                    {tab === "activos" && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard?.writeText(c.code);
+                          toast.success("Código copiado");
+                        }}
+                        className="flex items-center gap-1 text-xs font-semibold text-primary"
+                      >
+                        <Copy className="h-3.5 w-3.5" /> Copiar
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             );
           })}
 
           {/* Vacío */}
-          {!isLoading && filtered.length === 0 && (
+          {!isLoading && (!Array.isArray(coupons) || coupons.length === 0) && (
             <div className="rounded-2xl border border-dashed border-border p-8 text-center">
               <p className="text-sm text-muted-foreground">
-                No tienes cupones {tab} todavía.
+                {getEmptyText()}
               </p>
               {tab === "activos" && (
                 <Link to="/app/marketplace" className="mt-2 inline-block text-xs font-bold text-primary">
