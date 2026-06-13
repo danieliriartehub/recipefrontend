@@ -65,9 +65,9 @@ export const GlobalRandomAd = () => {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                   </span>
-                  Patrocinado {currentBanner.is_ml_targeted && "✨"}
+                  Patrocinado
                 </span>
-                <span className="text-[10px] text-muted-foreground font-medium">Recomendado por ML</span>
+                <span className="text-[10px] text-muted-foreground font-medium">Publicidad</span>
               </div>
               
               <div className="w-full overflow-hidden">
@@ -98,9 +98,9 @@ export const GlobalRandomAd = () => {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                   </span>
-                  Patrocinado {currentBanner.is_ml_targeted && "✨"}
+                  Patrocinado
                 </span>
-                <span className="text-[10px] text-muted-foreground font-medium">Recomendado por ML</span>
+                <span className="text-[10px] text-muted-foreground font-medium">Publicidad</span>
               </div>
               
               <div className="w-full overflow-hidden">
