@@ -273,3 +273,17 @@ export async function getScanHistory(_userId: string) {
 export async function getActiveBanners() {
   return backendApi.get<{id: string, merchant_partner_id: string, title?: string, business_name: string, banner_url: string, link_url?: string, display_order: number}[]>('/api/v1/aliados/banners')
 }
+
+export async function getTargetedBanner() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<{id: string, merchant_partner_id: string, title?: string, banner_url: string, link_url?: string, is_active: boolean, display_order: number, is_ml_targeted?: boolean}>('/api/v1/aliados/banners/target')
+}
+
+export async function trackBanner(bannerId: string, action: 'view' | 'click') {
+  const token = await getToken()
+  return backendApi.withToken(token).post<{success: boolean}>('/api/v1/aliados/banners/track', {
+    banner_id: bannerId,
+    action
+  })
+}
+
