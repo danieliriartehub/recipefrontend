@@ -141,10 +141,15 @@ const SessionBannerModal = () => {
   useEffect(() => {
     if (banners.length === 0) return;
     
-    // Pick a random banner on mount
-    const randomBanner = banners[Math.floor(Math.random() * banners.length)];
-    setSelectedBanner(randomBanner);
-    setIsOpen(true);
+    // Check if shown in this session to prevent double pop-ups with GlobalRandomAd
+    const hasShown = sessionStorage.getItem('session_banner_shown');
+    if (!hasShown) {
+      // Pick a random banner
+      const randomBanner = banners[Math.floor(Math.random() * banners.length)];
+      setSelectedBanner(randomBanner);
+      setIsOpen(true);
+      sessionStorage.setItem('session_banner_shown', 'true');
+    }
   }, [banners]);
 
   if (!isOpen || !selectedBanner) return null;
