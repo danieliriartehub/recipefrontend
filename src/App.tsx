@@ -25,6 +25,7 @@ import Notifications from "./pages/Notifications";
 import ScanAI from "./pages/ScanAI";
 import Marketplace from "./pages/Marketplace";
 import Wallet from "./pages/Wallet";
+import { GlobalRandomAd } from "./components/GlobalRandomAd";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +67,7 @@ const App = () => (
 
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <GlobalRandomAd />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
