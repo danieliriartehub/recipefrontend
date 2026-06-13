@@ -19,15 +19,9 @@ const STEPS = [
     tint: "from-secondary to-primary",
   },
   {
-    icon: TreePine,
-    title: "Ve tu impacto real",
-    body: "Cada kilo equivale a árboles, agua y CO₂. Compite con tu universidad y sube de nivel.",
-    tint: "from-accent to-primaryGlow",
-  },
-  {
     icon: Gift,
     title: "Canjea recompensas",
-    body: "Cafés, transporte, cursos y más. Beneficios pensados para universitarios de Lima.",
+    body: "Cafés, transporte, cursos y más.",
     tint: "from-primaryGlow to-accent",
   },
 ];
@@ -64,9 +58,8 @@ const Onboarding = () => {
             <button
               key={idx}
               onClick={() => setI(idx)}
-              className={`h-2 rounded-full transition-smooth ${
-                idx === i ? "w-7 bg-primary" : "w-2 bg-muted-foreground/30"
-              }`}
+              className={`h-2 rounded-full transition-smooth ${idx === i ? "w-7 bg-primary" : "w-2 bg-muted-foreground/30"
+                }`}
               aria-label={`Paso ${idx + 1}`}
             />
           ))}

@@ -151,7 +151,22 @@ export async function getUserCoupons(_userId: string) {
   return backendApi.withToken(token).get<unknown[]>('/api/v1/marketplace/coupons')
 }
 
-export async function redeemReward(_userId: string, rewardId: string, code: string) {
+export async function getActiveCoupons() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/coupons/active')
+}
+
+export async function getUsedCoupons() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/coupons/history')
+}
+
+export async function getExpiredCoupons() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<unknown[]>('/api/v1/coupons/expired')
+}
+
+export async function redeemReward(userId: string, rewardId: string, _code: string) {
   const token = await getToken()
   return backendApi.withToken(token).post<unknown>('/api/v1/marketplace/coupons', {
     reward_id: rewardId,
@@ -318,3 +333,17 @@ export async function getScanHistory(_userId: string) {
 export async function getActiveBanners() {
   return backendApi.get<{id: string, merchant_partner_id: string, title?: string, business_name: string, banner_url: string, link_url?: string, display_order: number}[]>('/api/v1/aliados/banners')
 }
+
+export async function getTargetedBanner() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<{id: string, merchant_partner_id: string, title?: string, banner_url: string, link_url?: string, is_active: boolean, display_order: number, is_ml_targeted?: boolean}>('/api/v1/aliados/banners/target')
+}
+
+export async function trackBanner(bannerId: string, action: 'view' | 'click') {
+  const token = await getToken()
+  return backendApi.withToken(token).post<{success: boolean}>('/api/v1/aliados/banners/track', {
+    banner_id: bannerId,
+    action
+  })
+}
+
