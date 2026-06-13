@@ -70,9 +70,7 @@ const MarketplaceDetail = () => {
     if (!user) return;
     setRedeeming(true);
     try {
-      // Create a random code for now or let the backend generate it. The backend expects a code.
-      const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-      await redeemReward(user.id, item.id, code);
+      await redeemReward(user.id, item.id);
       
       setConfirmed(true);
       refreshProfile(); // Update local points

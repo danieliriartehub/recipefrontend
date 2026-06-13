@@ -1,15 +1,24 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
-import { getActiveBanners, getMarketplaceCategories, getMarketplaceProducts } from "@/lib/api";
+import { getActiveBanners, getMarketplaceCategories, getMarketplaceProducts, getMarketplaceMerchants } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Search, Sparkles, Wallet, Loader2 } from "lucide-react";
+import { Search, Sparkles, Wallet, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 
 const Marketplace = () => {
   const { profile } = useAuth();
   const userPoints = profile?.points ?? 0;
+  
+  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const scroll = (direction: "left" | "right") => {
+    if (scrollRef.current) {
+      const scrollAmount = direction === "left" ? -200 : 200;
+      scrollRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
+    }
+  };
 
   const { data: banners = [] } = useQuery({
     queryKey: ["activeBanners"],
@@ -23,6 +32,12 @@ const Marketplace = () => {
   const { data: serverCategories = [] } = useQuery({
     queryKey: ["marketplaceCategories"],
     queryFn: getMarketplaceCategories,
+    staleTime: 1000 * 60 * 60, // 1 hora
+  });
+
+  const { data: merchants = [] } = useQuery({
+    queryKey: ["marketplaceMerchants"],
+    queryFn: getMarketplaceMerchants,
     staleTime: 1000 * 60 * 60, // 1 hora
   });
 
@@ -94,6 +109,43 @@ const Marketplace = () => {
               </div>
             </div>
           </Link>
+        )}
+
+        {/* Merchants / Aliados */}
+        {merchants.length > 0 && (
+          <div className="space-y-3 pt-2 relative">
+            <h2 className="font-display text-sm font-bold px-1">Nuestros Aliados</h2>
+            <div className="relative group">
+              <button 
+                onClick={() => scroll("left")} 
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-background/90 shadow-card backdrop-blur border border-border text-foreground"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              
+              <div ref={scrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide -mx-5 px-12 pb-2 scroll-smooth">
+                {merchants.map((merchant) => (
+                  <Link key={merchant.id} to={`/app/merchant/${merchant.id}`} className="flex flex-col items-center gap-2 min-w-[72px] transition-transform active:scale-95">
+                    <div className="h-16 w-16 rounded-full bg-card shadow-soft overflow-hidden border border-border/50 flex items-center justify-center p-1">
+                      {merchant.logo_url ? (
+                        <img src={merchant.logo_url} alt={merchant.name} className="h-full w-full object-contain rounded-full" />
+                      ) : (
+                        <span className="text-xl font-bold text-muted-foreground">{merchant.name.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-bold text-center leading-tight line-clamp-2 max-w-[72px]">{merchant.name}</span>
+                  </Link>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => scroll("right")} 
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-background/90 shadow-card backdrop-blur border border-border text-foreground"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Categories */}

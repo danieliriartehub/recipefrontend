@@ -58,14 +58,12 @@ export interface MeResponse {
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
-    // credentials: 'include' es fundamental para que la cookie HttpOnly
-    // del refresh_token se adjunte en peticiones cross-origin
     credentials: 'include',
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers ?? {}),
     },
-    ...options,
   })
 
   if (res.status === 204) return undefined as T

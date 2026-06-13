@@ -166,11 +166,10 @@ export async function getExpiredCoupons() {
   return backendApi.withToken(token).get<unknown[]>('/api/v1/coupons/expired')
 }
 
-export async function redeemReward(userId: string, rewardId: string, _code: string) {
+export async function redeemReward(userId: string, productId: string, __code?: string) {
   const token = await getToken()
-  return backendApi.withToken(token).post<unknown>('/api/v1/marketplace/coupons', {
-    reward_id: rewardId,
-    code,
+  return backendApi.withToken(token).post<unknown>('/api/v1/marketplace/redemptions', {
+    product_id: productId,
   })
 }
 
@@ -180,6 +179,18 @@ export interface MarketplaceMerchantOut {
   id: string;
   name: string;
   logo_url: string | null;
+}
+
+export interface MerchantPartnerOut {
+  id: string;
+  name: string | null;
+  tagline: string | null;
+  description: string | null;
+  logo_url: string | null;
+  cover_url: string | null;
+  brand_color: string | null;
+  category: string | null;
+  email: string | null;
 }
 
 export interface MarketplaceProductListOut {
@@ -200,6 +211,16 @@ export interface MarketplaceProductOut extends MarketplaceProductListOut {
   available_until: string | null;
   terms_and_conditions: string | null;
   redemption_instructions: string | null;
+}
+
+export async function getMarketplaceMerchants() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<MarketplaceMerchantOut[]>('/api/v1/marketplace/merchants')
+}
+
+export async function getMarketplaceMerchantById(id: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<MerchantPartnerOut>(`/api/v1/marketplace/merchants/${id}`)
 }
 
 export async function getMarketplaceCategories() {
