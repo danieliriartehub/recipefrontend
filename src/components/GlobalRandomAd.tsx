@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getActiveBanners } from "@/lib/api";
+import { getTargetedBanner, trackBanner } from "@/lib/api";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { X } from "lucide-react";
 
@@ -10,9 +10,9 @@ export const GlobalRandomAd = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState<any>(null);
 
-  const { data: banners = [] } = useQuery({
-    queryKey: ["activeBanners"],
-    queryFn: getActiveBanners,
+  const { data: targetedBanner } = useQuery({
+    queryKey: ["targetedBanner"],
+    queryFn: getTargetedBanner,
     staleTime: 1000 * 60 * 5,
   });
 
@@ -26,15 +26,21 @@ export const GlobalRandomAd = () => {
     sessionStorage.setItem("ui_moves", (moves + 1).toString());
 
     // Mostrar el pop-up a partir del segundo movimiento
-    if (moves > 0 && banners.length > 0) {
-      // Elegir banner aleatorio
-      const randomBanner = banners[Math.floor(Math.random() * banners.length)];
-      setCurrentBanner(randomBanner);
+    if (moves > 0 && targetedBanner) {
+      setCurrentBanner(targetedBanner);
       setIsOpen(true);
+      // Registrar vista (view) en el ML Tracker
+      trackBanner(targetedBanner.id, "view").catch(console.error);
     }
-  }, [location.pathname, banners.length]);
+  }, [location.pathname, targetedBanner]);
 
   if (!currentBanner) return null;
+
+  const handleBannerClick = () => {
+    // Registrar clic (click) en el ML Tracker
+    trackBanner(currentBanner.id, "click").catch(console.error);
+    setIsOpen(false);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -59,16 +65,16 @@ export const GlobalRandomAd = () => {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                Patrocinado
+                Patrocinado {currentBanner.is_ml_targeted && "✨"}
               </span>
-              <span className="text-[10px] text-muted-foreground font-medium">Publicidad</span>
+              <span className="text-[10px] text-muted-foreground font-medium">Recomendado por ML</span>
             </div>
             
             {currentBanner.link_url || currentBanner.website_url ? (
-              <a href={currentBanner.link_url || currentBanner.website_url} target="_blank" rel="noopener noreferrer" className="block w-full overflow-hidden" onClick={() => setIsOpen(false)}>
+              <a href={currentBanner.link_url || currentBanner.website_url} target="_blank" rel="noopener noreferrer" className="block w-full overflow-hidden" onClick={handleBannerClick}>
                 <img 
                   src={currentBanner.banner_url} 
-                  alt={currentBanner.title || currentBanner.business_name} 
+                  alt={currentBanner.title || "Banner patrocinado"} 
                   className="w-full aspect-[4/3] object-cover hover:scale-105 transition-transform duration-700" 
                 />
               </a>
@@ -76,7 +82,7 @@ export const GlobalRandomAd = () => {
               <div className="w-full overflow-hidden">
                 <img 
                   src={currentBanner.banner_url} 
-                  alt={currentBanner.title || currentBanner.business_name} 
+                  alt={currentBanner.title || "Banner patrocinado"} 
                   className="w-full aspect-[4/3] object-cover hover:scale-105 transition-transform duration-700" 
                 />
               </div>
@@ -84,7 +90,7 @@ export const GlobalRandomAd = () => {
             
             <div className="p-5 bg-white">
               <h3 className="font-bold text-lg mb-1.5 text-slate-800 leading-tight">
-                {currentBanner.title || currentBanner.business_name}
+                {currentBanner.title || "Oferta Exclusiva"}
               </h3>
               <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
                 ¡Aprovecha tus Puntos ECO para obtener beneficios exclusivos con nuestros aliados!
@@ -94,7 +100,7 @@ export const GlobalRandomAd = () => {
                   href={currentBanner.link_url || currentBanner.website_url} 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  onClick={() => setIsOpen(false)} 
+                  onClick={handleBannerClick} 
                   className="mt-4 flex items-center justify-center w-full bg-emerald-500 text-white py-2.5 rounded-xl font-semibold hover:bg-emerald-600 active:scale-95 transition-all shadow-sm shadow-emerald-500/20"
                 >
                   Ver oferta ahora
