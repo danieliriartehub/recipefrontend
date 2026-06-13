@@ -151,26 +151,71 @@ export async function getUserCoupons(_userId: string) {
   return backendApi.withToken(token).get<unknown[]>('/api/v1/marketplace/coupons')
 }
 
-export async function redeemReward(userId: string, rewardId: string, _code: string) {
+export async function redeemReward(_userId: string, rewardId: string, code: string) {
   const token = await getToken()
-  return backendApi.withToken(token).post<unknown>('/api/v1/marketplace/redeem', {
-    user_id: userId,
+  return backendApi.withToken(token).post<unknown>('/api/v1/marketplace/coupons', {
     reward_id: rewardId,
+    code,
   })
 }
 
-// ─── REWARDS / MARKETPLACE ────────────────────────────────────────────────────
+// ─── MARKETPLACE ──────────────────────────────────────────────────────────────
 
-export async function getRewards() {
-  return backendApi.get<unknown[]>('/api/v1/marketplace/rewards')
+export interface MarketplaceMerchantOut {
+  id: string;
+  name: string;
+  logo_url: string | null;
 }
 
-export async function getMarketItems() {
-  return backendApi.get<unknown[]>('/api/v1/marketplace/items')
+export interface MarketplaceProductListOut {
+  id: string;
+  name: string;
+  short_description: string | null;
+  points: number;
+  category: string | null;
+  image_url: string | null;
+  merchant: MarketplaceMerchantOut;
+  featured: boolean;
 }
 
-export async function getMarketItemById(id: string) {
-  return backendApi.get<unknown>(`/api/v1/marketplace/items/${id}`)
+export interface MarketplaceProductOut extends MarketplaceProductListOut {
+  description: string | null;
+  stock: number | null;
+  available_from: string | null;
+  available_until: string | null;
+  terms_and_conditions: string | null;
+  redemption_instructions: string | null;
+}
+
+export async function getMarketplaceCategories() {
+  const token = await getToken()
+  // This endpoint might not require auth, but we send token if available
+  return backendApi.withToken(token).get<string[]>('/api/v1/marketplace/categories')
+}
+
+export async function getMarketplaceProducts(params?: {
+  search_query?: string;
+  merchant_partner_id?: string;
+  category?: string;
+  featured?: boolean;
+}) {
+  const token = await getToken()
+  let queryStr = ""
+  if (params) {
+    const searchParams = new URLSearchParams()
+    if (params.search_query) searchParams.set("search_query", params.search_query)
+    if (params.merchant_partner_id) searchParams.set("merchant_partner_id", params.merchant_partner_id)
+    if (params.category && params.category !== "Todos") searchParams.set("category", params.category)
+    if (params.featured !== undefined) searchParams.set("featured", String(params.featured))
+    const q = searchParams.toString()
+    if (q) queryStr = `?${q}`
+  }
+  return backendApi.withToken(token).get<MarketplaceProductListOut[]>(`/api/v1/marketplace/products${queryStr}`)
+}
+
+export async function getMarketplaceProductById(id: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<MarketplaceProductOut>(`/api/v1/marketplace/products/${id}`)
 }
 
 // ─── MISIONES ─────────────────────────────────────────────────────────────────

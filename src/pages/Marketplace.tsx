@@ -3,12 +3,9 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
-import { getActiveBanners } from "@/lib/api";
-import { MARKETPLACE, type MarketItem } from "@/data/mock";
+import { getActiveBanners, getMarketplaceCategories, getMarketplaceProducts } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Search, Sparkles, Wallet } from "lucide-react";
-
-const categories = ["Todos", "Producto", "Cafetería", "Transporte", "Experiencia", "Donación"] as const;
+import { Search, Sparkles, Wallet, Loader2 } from "lucide-react";
 
 const Marketplace = () => {
   const { profile } = useAuth();
@@ -20,26 +17,33 @@ const Marketplace = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  const [cat, setCat] = useState<(typeof categories)[number]>("Todos");
+  const [cat, setCat] = useState<string>("Todos");
   const [query, setQuery] = useState("");
 
-  const list: MarketItem[] = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return MARKETPLACE.filter((m) => {
-      const matchCat = cat === "Todos" || m.category === cat;
-      const matchQ = !q || [m.title, m.brand, m.category, m.description].some((f) => f.toLowerCase().includes(q));
-      return matchCat && matchQ;
-    });
-  }, [cat, query]);
+  const { data: serverCategories = [] } = useQuery({
+    queryKey: ["marketplaceCategories"],
+    queryFn: getMarketplaceCategories,
+    staleTime: 1000 * 60 * 60, // 1 hora
+  });
 
-  const featured = MARKETPLACE.find((m) => m.tag === "Top venta")!;
+  const allCategories = useMemo(() => ["Todos", ...serverCategories], [serverCategories]);
+
+  const { data: list = [], isLoading } = useQuery({
+    queryKey: ["marketplaceProducts", query, cat],
+    queryFn: () => getMarketplaceProducts({
+      search_query: query,
+      category: cat === "Todos" ? undefined : cat,
+    }),
+  });
+
+  const featured = useMemo(() => list.find((m) => m.featured), [list]);
 
   return (
     <MobileShell>
       <ScreenHeader title="Eco Marketplace" subtitle="Convierte impacto en recompensas reales" back />
 
       {/* Sticky search */}
-      <div className="sticky top-0 z-30 -mt-2 bg-background/85 px-5 pb-3 pt-2 backdrop-blur-xl">
+      <div className="sticky top-[68px] z-20 -mt-2 bg-background/85 px-5 pb-3 pt-2 backdrop-blur-xl">
         <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-3 shadow-soft">
           <Search className="h-4 w-4 text-muted-foreground" />
           <input
@@ -70,19 +74,23 @@ const Marketplace = () => {
         </div>
 
         {/* Featured */}
-        {!query && (
+        {!query && featured && (
           <Link to={`/app/marketplace/${featured.id}`} className="block">
             <div className="relative overflow-hidden rounded-3xl bg-gradient-accent p-5 text-accent-foreground shadow-card transition-bounce hover:-translate-y-0.5">
               <div className="flex items-center gap-2 text-xs font-bold">
                 <Sparkles className="h-4 w-4" /> DESTACADO DE LA SEMANA
               </div>
               <div className="mt-3 flex items-center gap-4">
-                <span className="text-5xl">{featured.emoji}</span>
+                {featured.image_url ? (
+                  <img src={featured.image_url} alt={featured.name} className="h-16 w-16 rounded-xl object-cover" />
+                ) : (
+                  <span className="text-5xl">{featured.name.charAt(0).toUpperCase()}</span>
+                )}
                 <div className="min-w-0 flex-1">
-                  <p className="font-display text-lg font-extrabold leading-tight">{featured.title}</p>
-                  <p className="text-xs opacity-80">{featured.brand}</p>
+                  <p className="font-display text-lg font-extrabold leading-tight">{featured.name}</p>
+                  <p className="text-xs opacity-80">{featured.merchant.name}</p>
                 </div>
-                <span className="rounded-full bg-foreground/10 px-3 py-1.5 text-sm font-extrabold">{featured.cost}pts</span>
+                <span className="rounded-full bg-foreground/10 px-3 py-1.5 text-sm font-extrabold">{featured.points}pts</span>
               </div>
             </div>
           </Link>
@@ -90,7 +98,7 @@ const Marketplace = () => {
 
         {/* Categories */}
         <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-5 px-5">
-          {categories.map((c) => (
+          {allCategories.map((c) => (
             <button
               key={c}
               onClick={() => setCat(c)}
@@ -104,7 +112,11 @@ const Marketplace = () => {
         </div>
 
         {/* Grid */}
-        {list.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : list.length === 0 ? (
           <div className="rounded-3xl bg-card p-8 text-center shadow-soft">
             <p className="text-4xl">🔍</p>
             <p className="mt-2 font-display text-sm font-bold">Sin resultados</p>
@@ -121,13 +133,13 @@ const Marketplace = () => {
                 <React.Fragment key={m.id}>
                   {showAd && banner && (
                     <div className="col-span-2 relative rounded-2xl overflow-hidden shadow-card group my-1">
-                      {banner.link_url || banner.website_url ? (
-                        <a href={banner.link_url || banner.website_url} target="_blank" rel="noopener noreferrer" className="block w-full">
+                      {banner.link_url ? 
+                        <a href={banner.link_url} target="_blank" rel="noopener noreferrer" className="block w-full">
                           <img src={banner.banner_url} alt={banner.title || banner.business_name} className="w-full aspect-[21/9] object-cover animate-in fade-in duration-500" />
                         </a>
-                      ) : (
+                       : 
                         <img src={banner.banner_url} alt={banner.title || banner.business_name} className="w-full aspect-[21/9] object-cover animate-in fade-in duration-500" />
-                      )}
+                      }
                       <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded shadow-sm text-foreground z-10">
                         Patrocinado
                       </div>
@@ -137,20 +149,24 @@ const Marketplace = () => {
                     to={`/app/marketplace/${m.id}`}
                     className="flex flex-col overflow-hidden rounded-3xl bg-card shadow-soft transition-bounce hover:-translate-y-0.5 active:scale-[0.98]"
                   >
-                    <div className="relative flex h-24 items-center justify-center bg-gradient-soft text-5xl">
-                      {m.emoji}
-                      {m.tag && (
-                        <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[9px] font-extrabold uppercase text-accent-foreground">
-                          {m.tag}
+                    <div className="relative flex h-24 items-center justify-center bg-gradient-soft text-5xl overflow-hidden">
+                      {m.image_url ? (
+                        <img src={m.image_url} alt={m.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <span>{m.name.charAt(0).toUpperCase()}</span>
+                      )}
+                      {m.featured && (
+                        <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[9px] font-extrabold uppercase text-accent-foreground shadow-sm">
+                          TOP
                         </span>
                       )}
                     </div>
                     <div className="flex flex-1 flex-col p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{m.brand}</p>
-                      <p className="mt-0.5 line-clamp-2 text-sm font-bold leading-tight">{m.title}</p>
-                      <p className="mt-1 line-clamp-2 flex-1 text-[11px] text-muted-foreground">{m.description}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{m.merchant.name}</p>
+                      <p className="mt-0.5 line-clamp-2 text-sm font-bold leading-tight">{m.name}</p>
+                      <p className="mt-1 line-clamp-2 flex-1 text-[11px] text-muted-foreground">{m.short_description}</p>
                       <span className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-gradient-primary text-sm font-bold text-primary-foreground shadow-soft">
-                        {m.cost} pts
+                        {m.points} pts
                       </span>
                     </div>
                   </Link>
@@ -159,10 +175,6 @@ const Marketplace = () => {
             })}
           </div>
         )}
-
-        <p className="pb-4 text-center text-[11px] text-muted-foreground">
-          🌍 Cada canje en RECIPE financia una acción de reforestación
-        </p>
       </div>
     </MobileShell>
   );
