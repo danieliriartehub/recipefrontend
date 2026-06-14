@@ -166,26 +166,92 @@ export async function getExpiredCoupons() {
   return backendApi.withToken(token).get<unknown[]>('/api/v1/coupons/expired')
 }
 
-export async function redeemReward(userId: string, rewardId: string, _code: string) {
+export async function redeemReward(userId: string, productId: string, __code?: string) {
   const token = await getToken()
-  return backendApi.withToken(token).post<unknown>('/api/v1/marketplace/redeem', {
-    user_id: userId,
-    reward_id: rewardId,
+  return backendApi.withToken(token).post<unknown>('/api/v1/marketplace/redemptions', {
+    product_id: productId,
   })
 }
 
-// ─── REWARDS / MARKETPLACE ────────────────────────────────────────────────────
+// ─── MARKETPLACE ──────────────────────────────────────────────────────────────
 
-export async function getRewards() {
-  return backendApi.get<unknown[]>('/api/v1/marketplace/rewards')
+export interface MarketplaceMerchantOut {
+  id: string;
+  name: string;
+  logo_url: string | null;
 }
 
-export async function getMarketItems() {
-  return backendApi.get<unknown[]>('/api/v1/marketplace/items')
+export interface MerchantPartnerOut {
+  id: string;
+  name: string | null;
+  tagline: string | null;
+  description: string | null;
+  logo_url: string | null;
+  cover_url: string | null;
+  brand_color: string | null;
+  category: string | null;
+  email: string | null;
 }
 
-export async function getMarketItemById(id: string) {
-  return backendApi.get<unknown>(`/api/v1/marketplace/items/${id}`)
+export interface MarketplaceProductListOut {
+  id: string;
+  name: string;
+  short_description: string | null;
+  points: number;
+  category: string | null;
+  image_url: string | null;
+  merchant: MarketplaceMerchantOut;
+  featured: boolean;
+}
+
+export interface MarketplaceProductOut extends MarketplaceProductListOut {
+  description: string | null;
+  stock: number | null;
+  available_from: string | null;
+  available_until: string | null;
+  terms_and_conditions: string | null;
+  redemption_instructions: string | null;
+}
+
+export async function getMarketplaceMerchants() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<MarketplaceMerchantOut[]>('/api/v1/marketplace/merchants')
+}
+
+export async function getMarketplaceMerchantById(id: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<MerchantPartnerOut>(`/api/v1/marketplace/merchants/${id}`)
+}
+
+export async function getMarketplaceCategories() {
+  const token = await getToken()
+  // This endpoint might not require auth, but we send token if available
+  return backendApi.withToken(token).get<string[]>('/api/v1/marketplace/categories')
+}
+
+export async function getMarketplaceProducts(params?: {
+  search_query?: string;
+  merchant_partner_id?: string;
+  category?: string;
+  featured?: boolean;
+}) {
+  const token = await getToken()
+  let queryStr = ""
+  if (params) {
+    const searchParams = new URLSearchParams()
+    if (params.search_query) searchParams.set("search_query", params.search_query)
+    if (params.merchant_partner_id) searchParams.set("merchant_partner_id", params.merchant_partner_id)
+    if (params.category && params.category !== "Todos") searchParams.set("category", params.category)
+    if (params.featured !== undefined) searchParams.set("featured", String(params.featured))
+    const q = searchParams.toString()
+    if (q) queryStr = `?${q}`
+  }
+  return backendApi.withToken(token).get<MarketplaceProductListOut[]>(`/api/v1/marketplace/products${queryStr}`)
+}
+
+export async function getMarketplaceProductById(id: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).get<MarketplaceProductOut>(`/api/v1/marketplace/products/${id}`)
 }
 
 // ─── MISIONES ─────────────────────────────────────────────────────────────────

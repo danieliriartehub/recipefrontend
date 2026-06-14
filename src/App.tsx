@@ -24,6 +24,7 @@ import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import ScanAI from "./pages/ScanAI";
 import Marketplace from "./pages/Marketplace";
+import MerchantProfile from "./pages/MerchantProfile";
 import Wallet from "./pages/Wallet";
 import { GlobalRandomAd } from "./components/GlobalRandomAd";
 
@@ -58,6 +59,7 @@ const App = () => (
             <Route path="/app/impact" element={<ProtectedRoute><Impact /></ProtectedRoute>} />
             <Route path="/app/community" element={<Navigate to="/app" replace />} />
             <Route path="/app/marketplace/:id" element={<ProtectedRoute><MarketplaceDetail /></ProtectedRoute>} />
+            <Route path="/app/merchant/:id" element={<ProtectedRoute><MerchantProfile /></ProtectedRoute>} />
             <Route path="/app/coupons" element={<ProtectedRoute><Coupons /></ProtectedRoute>} />
             <Route path="/app/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/app/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
