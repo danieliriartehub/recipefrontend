@@ -1,7 +1,7 @@
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
 import { useAuth } from "@/lib/auth";
-import { getActiveCoupons, getUsedCoupons, getExpiredCoupons } from "@/lib/api";
+import { getUserCoupons } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Copy, Loader2 } from "lucide-react";
@@ -27,17 +27,13 @@ const Coupons = () => {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("activos");
 
-  const fetchCoupons = () => {
-    if (tab === "activos") return getActiveCoupons();
-    if (tab === "usados") return getUsedCoupons();
-    return getExpiredCoupons();
-  };
-
   const { data: coupons = [], isLoading } = useQuery({
-    queryKey: ["coupons", tab, user?.id],
-    queryFn: fetchCoupons,
+    queryKey: ["coupons", user?.id],
+    queryFn: () => getUserCoupons(user!.id),
     enabled: !!user,
   });
+
+  const filtered = Array.isArray(coupons) ? coupons.filter((c: any) => c.status === statusMap[tab]) : [];
 
   const getEmptyText = () => {
     if (tab === "activos") return "No tienes cupones activos todavía.";
@@ -85,7 +81,7 @@ const Coupons = () => {
           ))}
 
           {/* Lista de cupones */}
-          {!isLoading && Array.isArray(coupons) && coupons.map((c: any) => {
+          {!isLoading && filtered.map((c: any) => {
             const r = c.rewards || c.reward || null;
 
             return (
@@ -129,7 +125,7 @@ const Coupons = () => {
           })}
 
           {/* Vacío */}
-          {!isLoading && (!Array.isArray(coupons) || coupons.length === 0) && (
+          {!isLoading && filtered.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border p-8 text-center">
               <p className="text-sm text-muted-foreground">
                 {getEmptyText()}
