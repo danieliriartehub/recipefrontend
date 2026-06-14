@@ -1,26 +1,34 @@
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
 import { useAuth } from "@/lib/auth";
-import { getUserCoupons } from "@/lib/api";
+import { getActiveCoupons, getUsedCoupons, getExpiredCoupons } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Copy, Loader2 } from "lucide-react";
+import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
 const tabs = ["activos", "usados", "expirados"] as const;
 type Tab = (typeof tabs)[number];
 
-const statusMap: Record<Tab, string> = {
-  activos:   "activo",
-  usados:    "usado",
-  expirados: "expirado",
+const statusBadge = (s: string) => {
+  if (s === "pending" || s === "validated") return "bg-success/15 text-success";
+  if (s === "redeemed") return "bg-secondary/15 text-secondary";
+  if (s === "expired") return "bg-destructive/10 text-destructive";
+  return "bg-muted text-muted-foreground";
 };
 
-const statusBadge = (s: string) => {
-  if (s === "activo")   return "bg-success/15 text-success";
-  if (s === "usado")    return "bg-secondary/15 text-secondary";
-  return "bg-destructive/10 text-destructive";
+const translateStatus = (s: string) => {
+  if (s === "pending" || s === "validated") return "Activo";
+  if (s === "redeemed") return "Usado";
+  if (s === "expired") return "Expirado";
+  return s;
+};
+
+const queryFnMap = {
+  activos: getActiveCoupons,
+  usados: getUsedCoupons,
+  expirados: getExpiredCoupons,
 };
 
 const Coupons = () => {
@@ -28,12 +36,12 @@ const Coupons = () => {
   const [tab, setTab] = useState<Tab>("activos");
 
   const { data: coupons = [], isLoading } = useQuery({
-    queryKey: ["coupons", user?.id],
-    queryFn: () => getUserCoupons(user!.id),
+    queryKey: ["coupons", tab, user?.id],
+    queryFn: queryFnMap[tab],
     enabled: !!user,
   });
 
-  const filtered = Array.isArray(coupons) ? coupons.filter((c: any) => c.status === statusMap[tab]) : [];
+  const filtered = Array.isArray(coupons) ? coupons : [];
 
   const getEmptyText = () => {
     if (tab === "activos") return "No tienes cupones activos todavía.";
@@ -48,7 +56,7 @@ const Coupons = () => {
   };
 
   const getDateValue = (c: any) => {
-    const d = tab === "activos" || tab === "expirados" ? (c.expires_at || c.valid_until) : (c.used_at || c.redeemed_at);
+    const d = tab === "usados" ? c.redeemed_at : c.expires_at;
     return d ? new Date(d).toLocaleDateString("es-PE", {
       day: "numeric", month: "short", year: "numeric",
     }) : "—";
@@ -82,35 +90,37 @@ const Coupons = () => {
 
           {/* Lista de cupones */}
           {!isLoading && filtered.map((c: any) => {
-            const r = c.rewards || c.reward || null;
-
             return (
               <div key={c.id} className="overflow-hidden rounded-2xl bg-card shadow-soft">
                 <div className="flex items-center gap-3 p-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-soft text-3xl">
-                    {r?.emoji ?? "🎁"}
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-soft text-3xl">
+                    {c.image_url ? (
+                      <img src={c.image_url} alt={c.product_name} className="h-full w-full object-cover" />
+                    ) : (
+                      "🎁"
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {r?.brand ?? "—"}
+                      {c.partner_name ?? "—"}
                     </p>
-                    <p className="truncate text-sm font-bold">{r?.title ?? "Recompensa"}</p>
+                    <p className="truncate text-sm font-bold">{c.product_name ?? "Recompensa"}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      {getDateLabel()}{getDateValue(c)} • {c.points_spent ?? r?.points_cost ?? c.points_cost ?? 0} pts
+                      {getDateLabel()}{getDateValue(c)} • {c.points_spent ?? 0} pts
                     </p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${statusBadge(c.status || statusMap[tab])}`}>
-                    {c.status || statusMap[tab]}
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${statusBadge(c.status)}`}>
+                    {translateStatus(c.status)}
                   </span>
                 </div>
 
-                {c.code && (
+                {c.redemption_code && (
                   <div className="flex w-full items-center justify-between border-t border-dashed border-border bg-muted/40 px-4 py-3">
-                    <span className="font-mono text-sm font-bold tracking-wider">{c.code}</span>
+                    <span className="font-mono text-sm font-bold tracking-wider">{c.redemption_code}</span>
                     {tab === "activos" && (
                       <button
                         onClick={() => {
-                          navigator.clipboard?.writeText(c.code);
+                          navigator.clipboard?.writeText(c.redemption_code);
                           toast.success("Código copiado");
                         }}
                         className="flex items-center gap-1 text-xs font-semibold text-primary"
