@@ -198,6 +198,7 @@ export interface MarketplaceProductListOut {
   name: string;
   short_description: string | null;
   points: number;
+  stock: number | null;
   category: string | null;
   image_url: string | null;
   merchant: MarketplaceMerchantOut;
