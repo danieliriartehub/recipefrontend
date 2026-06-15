@@ -126,7 +126,9 @@ const MerchantProfile = () => {
               <Link
                 key={m.id}
                 to={`/app/marketplace/${m.id}`}
-                className="flex flex-col overflow-hidden rounded-3xl bg-card shadow-soft transition-bounce hover:-translate-y-0.5 border border-border/50"
+                className={`flex flex-col overflow-hidden rounded-3xl bg-card shadow-soft transition-bounce hover:-translate-y-0.5 border border-border/50 relative ${
+                  m.stock === 0 ? "grayscale opacity-[70%]" : ""
+                }`}
               >
                 <div className="relative flex h-32 items-center justify-center bg-[#eef5f0] text-5xl overflow-hidden p-2">
                   {m.image_url ? (
@@ -135,17 +137,23 @@ const MerchantProfile = () => {
                     <span className="text-[#2b5f3a] opacity-50">{m.name.charAt(0).toUpperCase()}</span>
                   )}
                   {m.featured && (
-                    <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[9px] font-extrabold uppercase text-accent-foreground shadow-sm">
+                    <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[9px] font-extrabold uppercase text-accent-foreground shadow-sm z-10">
                       TOP
                     </span>
                   )}
                 </div>
                 <div className="flex flex-1 flex-col p-3 border-t border-border/50">
                   <p className="mt-0.5 line-clamp-2 text-sm font-bold leading-tight">{m.name}</p>
-                  <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-[#b59a3e]">
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#fdf5d3]">🪙</span>
-                    {m.points}
-                  </div>
+                  {m.stock === 0 ? (
+                    <div className="mt-2 text-xs font-bold text-muted-foreground bg-muted w-fit px-2 py-0.5 rounded-lg z-10 relative">
+                      Sin stock
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-[#b59a3e] z-10 relative">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#fdf5d3]">🪙</span>
+                      {m.points}
+                    </div>
+                  )}
                 </div>
               </Link>
             ))}

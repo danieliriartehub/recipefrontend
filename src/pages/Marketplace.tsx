@@ -90,7 +90,7 @@ const Marketplace = () => {
 
         {/* Featured */}
         {!query && featured && (
-          <Link to={`/app/marketplace/${featured.id}`} className="block">
+          <Link to={`/app/marketplace/${featured.id}`} className={`block relative ${featured.stock === 0 ? "grayscale opacity-[70%]" : ""}`}>
             <div className="relative overflow-hidden rounded-3xl bg-gradient-accent p-5 text-accent-foreground shadow-card transition-bounce hover:-translate-y-0.5">
               <div className="flex items-center gap-2 text-xs font-bold">
                 <Sparkles className="h-4 w-4" /> DESTACADO DE LA SEMANA
@@ -105,7 +105,9 @@ const Marketplace = () => {
                   <p className="font-display text-lg font-extrabold leading-tight">{featured.name}</p>
                   <p className="text-xs opacity-80">{featured.merchant.name}</p>
                 </div>
-                <span className="rounded-full bg-foreground/10 px-3 py-1.5 text-sm font-extrabold">{featured.points}pts</span>
+                <span className={`rounded-full px-3 py-1.5 text-sm font-extrabold ${featured.stock === 0 ? "bg-white/40" : "bg-foreground/10"}`}>
+                  {featured.stock === 0 ? "Sin stock" : `${featured.points} pts`}
+                </span>
               </div>
             </div>
           </Link>
@@ -199,7 +201,9 @@ const Marketplace = () => {
                   )}
                   <Link
                     to={`/app/marketplace/${m.id}`}
-                    className="flex flex-col overflow-hidden rounded-3xl bg-card shadow-soft transition-bounce hover:-translate-y-0.5 active:scale-[0.98]"
+                    className={`flex flex-col overflow-hidden rounded-3xl bg-card shadow-soft transition-bounce hover:-translate-y-0.5 active:scale-[0.98] relative ${
+                      m.stock === 0 ? "grayscale opacity-[70%]" : ""
+                    }`}
                   >
                     <div className="relative flex h-24 items-center justify-center bg-gradient-soft text-5xl overflow-hidden">
                       {m.image_url ? (
@@ -208,7 +212,7 @@ const Marketplace = () => {
                         <span>{m.name.charAt(0).toUpperCase()}</span>
                       )}
                       {m.featured && (
-                        <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[9px] font-extrabold uppercase text-accent-foreground shadow-sm">
+                        <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[9px] font-extrabold uppercase text-accent-foreground shadow-sm z-10">
                           TOP
                         </span>
                       )}
@@ -217,8 +221,10 @@ const Marketplace = () => {
                       <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{m.merchant.name}</p>
                       <p className="mt-0.5 line-clamp-2 text-sm font-bold leading-tight">{m.name}</p>
                       <p className="mt-1 line-clamp-2 flex-1 text-[11px] text-muted-foreground">{m.short_description}</p>
-                      <span className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-gradient-primary text-sm font-bold text-primary-foreground shadow-soft">
-                        {m.points} pts
+                      <span className={`mt-3 inline-flex h-9 items-center justify-center rounded-xl text-sm font-bold shadow-soft z-10 relative ${
+                        m.stock === 0 ? "bg-muted text-muted-foreground" : "bg-gradient-primary text-primary-foreground"
+                      }`}>
+                        {m.stock === 0 ? "Sin stock" : `${m.points} pts`}
                       </span>
                     </div>
                   </Link>

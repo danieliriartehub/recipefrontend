@@ -93,7 +93,7 @@ const MarketplaceDetail = () => {
 
       <div className="px-5 space-y-5 pb-6">
         {/* Hero image */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-soft shadow-card">
+        <div className={`relative overflow-hidden rounded-3xl bg-gradient-soft shadow-card ${item.stock === 0 ? "grayscale opacity-[70%]" : ""}`}>
           <div className="flex h-56 items-center justify-center text-[120px] overflow-hidden">
             {item.image_url ? (
               <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
@@ -155,13 +155,23 @@ const MarketplaceDetail = () => {
         {/* CTA */}
         <Button
           size="lg"
-          disabled={!canRedeem || redeeming}
-          onClick={() => setOpen(true)}
+          disabled={item.stock === 0 || !canRedeem || redeeming}
+          onClick={() => {
+            if (canRedeem && item.stock !== 0) setOpen(true);
+          }}
           className={`h-14 w-full rounded-2xl text-base font-bold ${
-            canRedeem ? "bg-gradient-primary shadow-glow" : "bg-muted text-muted-foreground"
+            item.stock === 0
+              ? "bg-slate-300 text-slate-600 dark:bg-slate-800 dark:text-slate-400 pointer-events-none grayscale"
+              : canRedeem
+              ? "bg-gradient-primary shadow-glow"
+              : "bg-muted text-muted-foreground"
           }`}
         >
-          {canRedeem ? "Canjear recompensa" : `Te faltan ${(item.points - userPoints).toLocaleString()} pts`}
+          {item.stock === 0
+            ? "Sin stock"
+            : canRedeem
+            ? "Canjear recompensa"
+            : `Te faltan ${(item.points - userPoints).toLocaleString()} pts`}
         </Button>
       </div>
 
