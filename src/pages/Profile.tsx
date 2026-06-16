@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   ChevronRight, HelpCircle, LogOut, Pencil, Settings,
   Shield, Ticket, ShoppingBag, Wallet as WalletIcon, Trophy,
-  Calculator, ArrowDownLeft, ArrowUpRight,
+  Calculator, ArrowDownLeft, ArrowUpRight, Crown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -230,6 +230,33 @@ const Profile = () => {
             })}
           </div>
         )}
+      </section>
+
+      {/* ── Membresía ReciPE PLUS ── */}
+      <section className="mx-5 mt-5">
+        <div 
+          onClick={() => toast.info("Próximamente podrás suscribirte a ReciPE PLUS")}
+          className="relative cursor-pointer overflow-hidden rounded-3xl bg-gradient-to-r from-yellow-500 to-amber-600 p-4 text-white shadow-soft transition-transform hover:scale-[1.02]"
+        >
+          <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/20 blur-xl" />
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur">
+                <Crown className="h-5 w-5 text-yellow-100" />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-extrabold flex items-center gap-1.5">
+                  ReciPE PLUS
+                  <span className="rounded bg-white/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                    S/ 5.99
+                  </span>
+                </h3>
+                <p className="text-xs text-yellow-50/90 mt-0.5">Disfruta la app sin anuncios</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-white/80" />
+          </div>
+        </div>
       </section>
 
       {/* ── Menú de navegación ── */}
