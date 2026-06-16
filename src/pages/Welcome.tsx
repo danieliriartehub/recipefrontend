@@ -3,7 +3,7 @@ import { Logo } from "@/components/recipe/Logo";
 import { Button } from "@/components/ui/button";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { MapPin, Trophy, TreePine, Sparkles } from "lucide-react";
-import heroImg from "@/assets/welcome-hero.jpg";
+import heroImg from "@/assets/welcome-hero.png";
 
 const features = [
   { icon: MapPin, label: "Mapa inteligente" },
