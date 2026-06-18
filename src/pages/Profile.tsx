@@ -120,13 +120,10 @@ const Profile = () => {
   const impactWater = Math.round(totalKg * 18);
 
   const menu = [
+    { icon: Ticket, label: "Mis cupones", to: "/app/coupons" },
     { icon: WalletIcon, label: "Eco Wallet", to: "/app/wallet" },
     { icon: ShoppingBag, label: "Marketplace", to: "/app/marketplace" },
-    { icon: Calculator, label: "Eco Simulator", to: "/app/simulator" },
-    { icon: Ticket, label: "Mis cupones", to: "/app/coupons" },
-    { icon: Shield, label: "Privacidad y seguridad", to: "#" },
-    { icon: Settings, label: "Configuración", to: "#" },
-    { icon: HelpCircle, label: "Ayuda y soporte", to: "#" },
+    { icon: Calculator, label: "Eco Simulator", to: "/app/simulator" }    
   ];
 
   if (isEditing) {
@@ -262,6 +259,64 @@ const Profile = () => {
           </div>
         </div>
       </header>
+
+      {/* ── Membresía ReciPE PLUS ── */}
+      <section className="mx-5 mt-5">
+        {(profile as any)?.is_plus ? (
+          /* ── Estado: PLUS ACTIVO ── */
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-yellow-500 to-amber-600 p-4 text-white shadow-soft">
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/20 blur-xl" />
+            <div className="relative flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur">
+                  <Crown className="h-5 w-5 text-yellow-100" />
+                </div>
+                <div>
+                  <h3 className="font-display text-sm font-extrabold flex items-center gap-1.5">
+                    ReciPE PLUS
+                    <span className="rounded bg-white/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                      ACTIVO ✓
+                    </span>
+                  </h3>
+                  <p className="text-xs text-yellow-50/90 mt-0.5">
+                    {(profile as any)?.plus_expires_at
+                      ? `Válido hasta ${new Date((profile as any).plus_expires_at).toLocaleDateString("es-PE", { day: "numeric", month: "long" })}`
+                      : "Membresía activa · Sin anuncios"}
+                  </p>
+                </div>
+              </div>
+              <CheckCircle2 className="h-5 w-5 text-white/90" />
+            </div>
+          </div>
+        ) : (
+          /* ── Estado: SIN PLUS → navegar a pantalla de suscripción ── */
+          <div
+            role="button"
+            id="btn-recipe-plus-profile"
+            onClick={() => nav("/app/plus")}
+            className="relative cursor-pointer overflow-hidden rounded-3xl bg-gradient-to-r from-yellow-500 to-amber-600 p-4 text-white shadow-soft transition-transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/20 blur-xl" />
+            <div className="relative flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur">
+                  <Crown className="h-5 w-5 text-yellow-100" />
+                </div>
+                <div>
+                  <h3 className="font-display text-sm font-extrabold flex items-center gap-1.5">
+                    ReciPE PLUS
+                    <span className="rounded bg-white/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                      S/ 5.99
+                    </span>
+                  </h3>
+                  <p className="text-xs text-yellow-50/90 mt-0.5">Disfruta la app sin anuncios</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-white/80" />
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* ── Badges ── */}
       <section className="px-5 pt-5">
