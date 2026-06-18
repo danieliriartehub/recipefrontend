@@ -3,16 +3,14 @@ import { MobileShell } from "@/components/recipe/MobileShell";
 import { useAuth } from "@/lib/auth";
 import { createPaymentSession } from "@/lib/api";
 import {
-  Crown, Check, ArrowLeft, Sparkles, Shield, Zap, Star,
-  X, Loader2
+  Crown, Check, ArrowLeft, Sparkles, Shield, Zap, Star, X, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback } from "react";
-import KRGlue from "@lyracom/embedded-form-glue";
 import { toast } from "sonner";
 
-const IZIPAY_PUBLIC_KEY = "61792228:publickey_sRnFfkR0pTYa9JQGe0dcS9g5zzwIChGYdSN0us0o1RoH2";
-const IZIPAY_DOMAIN    = "https://static.micuentaweb.pe";
+// KR es el objeto global que inyecta kr-payment-form.min.js desde index.html
+declare const KR: any;
 
 const BENEFITS = [
   {
@@ -51,98 +49,62 @@ const RecipePlus = () => {
 
   const [loading, setLoading]         = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [sdkReady, setSdkReady]       = useState(false);
-  const [sdkError, setSdkError]       = useState<string | null>(null);
+  const [formToken, setFormToken]     = useState<string | null>(null);
+  const [krReady, setKrReady]         = useState(false);
 
   const formTokenRef = useRef<string | null>(null);
-  const krRef        = useRef<any>(null);
-  // Ref al div del formulario — nos dice exactamente cuándo está en el DOM
-  const formDivRef   = useRef<HTMLDivElement | null>(null);
 
-  // ── Teardown ──────────────────────────────────────────────────────────────
-  const teardown = useCallback(() => {
-    try { krRef.current?.removeForms?.() } catch {}
-    krRef.current = null;
-    setSdkReady(false);
-    setSdkError(null);
+  // ── Registrar el callback de KR.onSubmit una sola vez cuando KR está listo ──
+  // KR se inyecta globalmente desde index.html — esperamos a que exista
+  useEffect(() => {
+    let attempts = 0;
+    const maxAttempts = 20; // 2 segundos máximo
+
+    const waitForKR = setInterval(() => {
+      attempts++;
+      if (typeof KR !== "undefined" && KR?.onSubmit) {
+        clearInterval(waitForKR);
+
+        KR.onSubmit(async (paymentData: any) => {
+          const status = paymentData?.clientAnswer?.orderStatus;
+          if (status === "PAID") {
+            toast.success("¡Pago exitoso! Bienvenido a RECIPE Plus 👑");
+            setIsModalOpen(false);
+            await refreshProfile();
+            setTimeout(() => navigate("/app/profile"), 1200);
+          } else {
+            toast.error("El pago no se pudo procesar. Intenta nuevamente.");
+          }
+          return false; // prevenir redirect automático
+        });
+
+        setKrReady(true);
+      } else if (attempts >= maxAttempts) {
+        clearInterval(waitForKR);
+        console.error("[IziPay] KR global no disponible tras esperar 2s");
+      }
+    }, 100);
+
+    return () => clearInterval(waitForKR);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const closeModal = useCallback(() => {
-    teardown();
     setIsModalOpen(false);
-  }, [teardown]);
+  }, []);
 
-  useEffect(() => () => { teardown() }, [teardown]);
-
-  // ── Montar el SDK cuando el modal abre ───────────────────────────────────
-  // Usamos requestAnimationFrame para esperar a que React haya pintado el DOM
-  // antes de que KRGlue intente encontrar #kr-embedded.
-  useEffect(() => {
-    if (!isModalOpen || !formTokenRef.current) return;
-
-    let cancelled = false;
-    let rafId: number;
-
-    // rAF garantiza que el navegador ya terminó de pintar el modal
-    rafId = requestAnimationFrame(() => {
-      if (cancelled) return;
-
-      const mount = async () => {
-        try {
-          const { KR } = await KRGlue.loadLibrary(IZIPAY_DOMAIN, IZIPAY_PUBLIC_KEY);
-          if (cancelled) return;
-
-          const { KR: KR2 } = await KR.setFormConfig({
-            formToken: formTokenRef.current!,
-            "kr-language": "es-ES",
-          });
-          if (cancelled) return;
-
-          await KR2.onSubmit(async (paymentData: any) => {
-            if (paymentData?.clientAnswer?.orderStatus === "PAID") {
-              toast.success("¡Pago exitoso! Bienvenido a RECIPE Plus 👑");
-              closeModal();
-              await refreshProfile();
-              setTimeout(() => navigate("/app/profile"), 1200);
-            } else {
-              toast.error("El pago no se pudo procesar. Intenta nuevamente.");
-            }
-            return false;
-          });
-
-          await KR2.renderElements("#kr-embedded");
-          if (cancelled) return;
-
-          krRef.current = KR2;
-          setSdkReady(true);
-
-        } catch (err: any) {
-          if (cancelled) return;
-          console.error("[IziPay] SDK error:", err);
-          setSdkError(err?.message ?? "Error al cargar la pasarela de pagos");
-        }
-      };
-
-      mount();
-    });
-
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(rafId);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isModalOpen]);
-
-  // ── Botón suscribirse ─────────────────────────────────────────────────────
+  // ── Obtener formToken del backend y abrir modal ───────────────────────────
   const handleSubscribe = async () => {
     if (isModalOpen) return;
 
+    // Reusar token si ya existe (evita crear sesión nueva)
     if (!formTokenRef.current) {
       try {
         setLoading(true);
         const res = await createPaymentSession();
         if (!res?.formToken) throw new Error("Sin formToken");
         formTokenRef.current = res.formToken;
+        setFormToken(res.formToken);
       } catch {
         toast.error("No se pudo iniciar el pago. Intenta más tarde.");
         return;
@@ -151,8 +113,6 @@ const RecipePlus = () => {
       }
     }
 
-    setSdkReady(false);
-    setSdkError(null);
     setIsModalOpen(true);
   };
 
@@ -246,10 +206,9 @@ const RecipePlus = () => {
 
       {/*
         ── Modal de pago ─────────────────────────────────────────────────────
-        El modal SIEMPRE está montado en el DOM (no usamos {isModalOpen && ...}).
-        Solo cambia su visibilidad con clases CSS.
-        Esto garantiza que #kr-embedded existe cuando KRGlue.renderElements()
-        lo busca — eliminando el error CLIENT_721.
+        Siempre montado en el DOM — visibilidad controlada por CSS.
+        El div.kr-smart-form con kr-form-token es detectado automáticamente
+        por el SDK global (kr-payment-form.min.js) cuando el atributo cambia.
       */}
       <div
         role="dialog"
@@ -265,7 +224,7 @@ const RecipePlus = () => {
           className={[
             "relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl",
             "max-h-[90dvh] flex flex-col transition-transform duration-200",
-            isModalOpen ? "translate-y-0" : "translate-y-full sm:translate-y-0 sm:scale-95",
+            isModalOpen ? "translate-y-0" : "translate-y-full sm:translate-y-4",
           ].join(" ")}
         >
           {/* Cabecera */}
@@ -282,34 +241,31 @@ const RecipePlus = () => {
             </button>
           </div>
 
-          {/* Cuerpo: spinner + formulario IziPay */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 min-h-[300px]">
-            {/* Spinner mientras el SDK carga */}
-            {isModalOpen && !sdkReady && !sdkError && (
-              <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
+          {/* Cuerpo */}
+          <div className="flex-1 overflow-y-auto px-4 py-5">
+            {/* Spinner mientras no hay token o KR no está listo */}
+            {(!formToken || !krReady) && (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
                 <p className="text-sm text-muted-foreground">Cargando pasarela de pago...</p>
               </div>
             )}
 
-            {/* Error */}
-            {sdkError && (
-              <div className="flex flex-col items-center justify-center h-full gap-4 py-8">
-                <p className="text-sm text-destructive text-center">{sdkError}</p>
-                <Button variant="outline" size="sm" onClick={closeModal}>Cerrar</Button>
-              </div>
-            )}
-
             {/*
-              Contenedor del SDK de IziPay.
-              Siempre en el DOM. Visible solo cuando sdkReady=true.
-              KRGlue inyecta el iframe del formulario aquí.
+              Formulario IziPay según documentación oficial:
+              - class="kr-smart-form" → SDK detecta y renderiza el formulario
+              - kr-form-token → el token generado por el backend
+              - kr-card-form-expanded → muestra el form de tarjeta expandido por defecto
+              El SDK de IziPay (cargado en index.html) escanea el DOM y
+              renderiza el formulario cuando encuentra este div.
             */}
-            <div
-              id="kr-embedded"
-              ref={formDivRef}
-              className={sdkReady ? "w-full" : "hidden"}
-            />
+            {formToken && krReady && (
+              <div
+                className="kr-smart-form"
+                kr-form-token={formToken}
+                kr-card-form-expanded="true"
+              />
+            )}
           </div>
 
           {/* Pie */}
