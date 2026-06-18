@@ -369,3 +369,10 @@ export async function trackBanner(bannerId: string, action: 'view' | 'click') {
   })
 }
 
+// ─── PAGOS (RECIPE Plus) ──────────────────────────────────────────────────────
+
+export async function createPaymentSession() {
+  const token = await getToken()
+  return backendApi.withToken(token).post<{formToken: string; orderId: string}>('/api/v1/payments/create-session')
+}
+

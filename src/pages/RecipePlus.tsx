@@ -1,15 +1,19 @@
 import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { useAuth } from "@/lib/auth";
+import { createPaymentSession } from "@/lib/api";
 import {
   Crown, Check, ArrowLeft, Sparkles, Shield, Zap, Star,
-  ExternalLink, ChevronRight
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import KRGlue from "@lyracom/embedded-form-glue";
+import { toast } from "sonner";
 
-// ─── Constante: link de pago de IziPay ───────────────────────────────────────
-const IZIPAY_PAYMENT_LINK = "https://checkout.izipay.pe/link/29c8e9samp1nua";
+// ─── Clave pública de IziPay (micuentaweb.pe) ────────────────────────────────
+const IZIPAY_PUBLIC_KEY = "61792228:publickey_sRnFfkR0pTYa9JQGe0dcS9g5zzwIChGYdSN0us0o1RoH2";
+const IZIPAY_DOMAIN = "https://static.micuentaweb.pe";
 
 // ─── Beneficios RECIPE Plus ───────────────────────────────────────────────────
 const BENEFITS = [
@@ -45,15 +49,64 @@ const BENEFITS = [
 
 const RecipePlus = () => {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [formToken, setFormToken] = useState<string | null>(null);
 
-  const handleSubscribe = () => {
-    setLoading(true);
-    // Abre el link de pago de IziPay en una nueva pestaña
-    window.open(IZIPAY_PAYMENT_LINK, "_blank", "noopener,noreferrer");
-    // Leve delay para feedback visual antes de quitar el loading
-    setTimeout(() => setLoading(false), 1500);
+  // Cargar SDK de IziPay cuando haya un token disponible
+  useEffect(() => {
+    if (formToken) {
+      KRGlue.loadLibrary(IZIPAY_DOMAIN, IZIPAY_PUBLIC_KEY)
+        .then(({ KR }) =>
+          KR.setFormConfig({
+            formToken: formToken,
+            "kr-language": "es-ES",
+          })
+        )
+        .then(({ KR }) => KR.onSubmit(onPaymentComplete))
+        .then(({ KR }) => KR.addForm("#myPaymentForm"))
+        .then(({ KR, result }) => KR.showForm(result.formId))
+        .catch((error) => {
+          console.error("IziPay SDK load error", error);
+          toast.error("Error al cargar la pasarela de pagos flotante");
+          setLoading(false);
+          setFormToken(null);
+        });
+    }
+  }, [formToken]);
+
+  // Callback cuando se completa la transacción en el pop-in
+  const onPaymentComplete = async (paymentData: any) => {
+    if (paymentData.clientAnswer.orderStatus === "PAID") {
+      toast.success("¡Pago exitoso! Bienvenido a RECIPE Plus 👑");
+      // Refrescar el perfil para que is_plus se actualice en la UI
+      await refreshProfile();
+      // Volver al perfil
+      setTimeout(() => navigate("/app/profile"), 1500);
+    } else {
+      toast.error("El pago no se pudo procesar. Intenta nuevamente.");
+      setFormToken(null);
+      setLoading(false);
+    }
+    // Retornar false previene la redirección automática del SDK
+    return false; 
+  };
+
+  const handleSubscribe = async () => {
+    try {
+      setLoading(true);
+      // Llama a nuestro backend para obtener el token
+      const res = await createPaymentSession();
+      if (res.data && res.data.formToken) {
+        setFormToken(res.data.formToken);
+      } else {
+        throw new Error("No form token returned");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("No se pudo iniciar el pago. Intenta más tarde.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -135,24 +188,26 @@ const RecipePlus = () => {
         </div>
       </section>
 
+      {/* ── Contenedor IziPay (Pop-In) ────────────────────────────────────── */}
+      <div id="myPaymentForm" className="kr-embedded" kr-popin="kr-popin"></div>
+
       {/* ── CTA Principal ──────────────────────────────────────────────────── */}
       <section className="px-5 py-6">
         <Button
           id="btn-subscribe-recipe-plus"
           onClick={handleSubscribe}
-          disabled={loading}
+          disabled={loading || formToken !== null}
           className="h-14 w-full rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-base font-bold text-white shadow-lg transition-all hover:from-amber-600 hover:to-yellow-600 hover:shadow-xl disabled:opacity-80"
         >
           {loading ? (
             <span className="flex items-center gap-2">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              Abriendo página de pago...
+              Iniciando pasarela segura...
             </span>
           ) : (
             <span className="flex items-center gap-2">
               <Crown className="h-5 w-5" />
               Suscribirme por S/ 5.99 / mes
-              <ExternalLink className="h-4 w-4" />
             </span>
           )}
         </Button>
@@ -170,24 +225,6 @@ const RecipePlus = () => {
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
           Acepta Visa · Mastercard · Amex · Yape · QR
         </p>
-      </section>
-
-      {/* ── Pasos del proceso ─────────────────────────────────────────────── */}
-      <section className="mx-5 mb-8 rounded-3xl bg-card p-5 shadow-soft">
-        <p className="mb-4 text-sm font-bold">¿Cómo funciona?</p>
-        {[
-          { step: "1", text: "Haz clic en «Suscribirme»" },
-          { step: "2", text: "Ingresa tus datos de pago en la página segura de IziPay" },
-          { step: "3", text: "Confirma el pago y regresa a RECIPE" },
-          { step: "4", text: "Tu cuenta PLUS se activa en minutos 🎉" },
-        ].map(({ step, text }) => (
-          <div key={step} className="mb-3 flex items-center gap-3 last:mb-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-extrabold text-amber-600">
-              {step}
-            </div>
-            <p className="text-sm text-muted-foreground">{text}</p>
-          </div>
-        ))}
       </section>
     </MobileShell>
   );
