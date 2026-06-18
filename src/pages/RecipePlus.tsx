@@ -4,18 +4,16 @@ import { useAuth } from "@/lib/auth";
 import { createPaymentSession } from "@/lib/api";
 import {
   Crown, Check, ArrowLeft, Sparkles, Shield, Zap, Star,
-  X
+  X, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import KRGlue from "@lyracom/embedded-form-glue";
 import { toast } from "sonner";
 
-// ─── Clave pública de IziPay (micuentaweb.pe) ────────────────────────────────
 const IZIPAY_PUBLIC_KEY = "61792228:publickey_sRnFfkR0pTYa9JQGe0dcS9g5zzwIChGYdSN0us0o1RoH2";
-const IZIPAY_DOMAIN = "https://static.micuentaweb.pe";
+const IZIPAY_DOMAIN    = "https://static.micuentaweb.pe";
 
-// ─── Beneficios RECIPE Plus ───────────────────────────────────────────────────
 const BENEFITS = [
   {
     icon: Shield,
@@ -49,75 +47,114 @@ const BENEFITS = [
 
 const RecipePlus = () => {
   const navigate = useNavigate();
-  const { profile, refreshProfile } = useAuth();
-  const [loading, setLoading] = useState(false);
-  
-  // Estados para nuestro propio Pop-Up de React
+  const { refreshProfile } = useAuth();
+  const [loading, setLoading]         = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formToken, setFormToken] = useState<string | null>(null);
-  const isSDKLoaded = useRef(false);
+  const [sdkReady, setSdkReady]       = useState(false);
+  const [sdkError, setSdkError]       = useState<string | null>(null);
+  const formTokenRef  = useRef<string | null>(null);
+  const krInstanceRef = useRef<any>(null);
+  const cleanupRef    = useRef<(() => void) | null>(null);
 
-  // Cargar SDK de IziPay (modo INLINE) dentro de nuestro Modal
+  // ── Limpiar SDK al cerrar/desmontar ──────────────────────────────────────
+  const teardown = useCallback(() => {
+    try { cleanupRef.current?.() } catch {}
+    cleanupRef.current    = null;
+    krInstanceRef.current = null;
+    setSdkReady(false);
+    setSdkError(null);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    teardown();
+    setIsModalOpen(false);
+  }, [teardown]);
+
+  // Limpiar al desmontar el componente
+  useEffect(() => () => { teardown() }, [teardown]);
+
+  // ── Montar el SDK cuando el modal se abre y hay un formToken ─────────────
   useEffect(() => {
-    if (isModalOpen && formToken && !isSDKLoaded.current) {
-      isSDKLoaded.current = true;
+    if (!isModalOpen || !formTokenRef.current) return;
 
-      KRGlue.loadLibrary(IZIPAY_DOMAIN, IZIPAY_PUBLIC_KEY)
-        .then(({ KR }) =>
-          KR.setFormConfig({
-            formToken: formToken,
-            "kr-language": "es-ES",
-          })
-        )
-        .then(({ KR }) => KR.onSubmit(onPaymentComplete))
-        // Reemplazamos attachForm obsoleto por renderElements (recomendado para Smart Forms)
-        .then(({ KR }) => KR.renderElements("#myPaymentForm"))
-        .catch((error) => {
-          console.error("IziPay SDK load error", error);
-          toast.error("Error al cargar la pasarela de pagos.");
-          setIsModalOpen(false);
-          isSDKLoaded.current = false;
+    let cancelled = false;
+
+    const mount = async () => {
+      try {
+        // 1. Cargar librería + CSS (neon theme soporta Smart Form con Yape/Plin)
+        const { KR } = await KRGlue.loadLibrary(
+          IZIPAY_DOMAIN,
+          IZIPAY_PUBLIC_KEY,
+        );
+
+        if (cancelled) return;
+
+        // 2. Configurar token e idioma
+        const { KR: KR2 } = await KR.setFormConfig({
+          formToken: formTokenRef.current!,
+          "kr-language": "es-ES",
         });
-    }
-  }, [isModalOpen, formToken]);
 
-  // Callback cuando se completa la transacción
-  const onPaymentComplete = async (paymentData: any) => {
-    if (paymentData.clientAnswer.orderStatus === "PAID") {
-      toast.success("¡Pago exitoso! Bienvenido a RECIPE Plus 👑");
-      await refreshProfile();
-      setTimeout(() => navigate("/app/profile"), 1500);
-    } else {
-      toast.error("El pago no se pudo procesar. Intenta nuevamente.");
-      setIsModalOpen(false);
-      isSDKLoaded.current = false;
-      setFormToken(null);
-    }
-    return false; 
-  };
+        if (cancelled) return;
 
-  const handleSubscribe = async () => {
-    // Si ya lo teníamos, solo abrimos el modal
-    if (formToken) {
-      setIsModalOpen(true);
-      return;
-    }
+        // 3. Registrar callback de pago completado
+        await KR2.onSubmit(async (paymentData: any) => {
+          if (paymentData?.clientAnswer?.orderStatus === "PAID") {
+            toast.success("¡Pago exitoso! Bienvenido a RECIPE Plus 👑");
+            closeModal();
+            await refreshProfile();
+            setTimeout(() => navigate("/app/profile"), 1200);
+          } else {
+            toast.error("El pago no se pudo procesar. Intenta nuevamente.");
+          }
+          return false; // prevenir redirect automático de IziPay
+        });
 
-    try {
-      setLoading(true);
-      const res = await createPaymentSession();
-      if (res && res.formToken) {
-        setFormToken(res.formToken);
-        setIsModalOpen(true);
-      } else {
-        throw new Error("No form token returned");
+        // 4. Renderizar el Smart Form dentro del contenedor #kr-embedded
+        await KR2.renderElements("#kr-embedded");
+
+        if (cancelled) return;
+
+        krInstanceRef.current = KR2;
+        cleanupRef.current    = () => { try { KR2.removeForms() } catch {} };
+        setSdkReady(true);
+
+      } catch (err: any) {
+        if (cancelled) return;
+        console.error("[IziPay] Error montando SDK:", err);
+        setSdkError(err?.message ?? "Error al cargar la pasarela de pagos");
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("No se pudo iniciar el pago. Intenta más tarde.");
-    } finally {
-      setLoading(false);
+    };
+
+    mount();
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isModalOpen]);
+
+  // ── Botón "Suscribirme": obtiene formToken y abre modal ──────────────────
+  const handleSubscribe = async () => {
+    if (isModalOpen) return;
+
+    // Reusar token si ya lo tenemos (evita crear una sesión nueva innecesaria)
+    if (!formTokenRef.current) {
+      try {
+        setLoading(true);
+        const res = await createPaymentSession();
+        if (!res?.formToken) throw new Error("Sin formToken");
+        formTokenRef.current = res.formToken;
+      } catch (err) {
+        console.error(err);
+        toast.error("No se pudo iniciar el pago. Intenta más tarde.");
+        return;
+      } finally {
+        setLoading(false);
+      }
     }
+
+    setSdkReady(false);
+    setSdkError(null);
+    setIsModalOpen(true);
   };
 
   return (
@@ -145,7 +182,6 @@ const RecipePlus = () => {
           <p className="mt-1.5 text-sm text-yellow-50/90">
             La experiencia premium de reciclaje universitario
           </p>
-
           <div className="mt-4 flex items-baseline gap-1 rounded-2xl bg-white/20 px-5 py-2 backdrop-blur">
             <span className="font-display text-3xl font-extrabold">S/ 5.99</span>
             <span className="text-sm font-medium text-yellow-50/80">/ mes</span>
@@ -160,18 +196,13 @@ const RecipePlus = () => {
         </p>
         <div className="space-y-3">
           {BENEFITS.map(({ icon: Icon, title, desc, color, bg }) => (
-            <div
-              key={title}
-              className="flex items-start gap-4 rounded-2xl bg-card p-4 shadow-soft"
-            >
+            <div key={title} className="flex items-start gap-4 rounded-2xl bg-card p-4 shadow-soft">
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg}`}>
                 <Icon className={`h-5 w-5 ${color}`} />
               </div>
               <div className="min-w-0">
                 <p className="font-display text-sm font-bold">{title}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  {desc}
-                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{desc}</p>
               </div>
               <Check className="mt-1 h-4 w-4 shrink-0 text-emerald-500" />
             </div>
@@ -184,28 +215,24 @@ const RecipePlus = () => {
         <div className="flex items-start gap-3">
           <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
           <div>
-            <p className="text-sm font-bold text-amber-800">
-              Sin compromiso de permanencia
-            </p>
+            <p className="text-sm font-bold text-amber-800">Sin compromiso de permanencia</p>
             <p className="mt-0.5 text-xs text-amber-700">
-              Cancela cuando quieras. Tu suscripción se mantiene activa hasta
-              el final del período pagado.
+              Cancela cuando quieras. Tu suscripción se mantiene activa hasta el final del período pagado.
             </p>
           </div>
         </div>
       </section>
 
-      {/* ── CTA Principal ──────────────────────────────────────────────────── */}
+      {/* ── CTA ────────────────────────────────────────────────────────────── */}
       <section className="px-5 py-6">
         <Button
-          id="btn-subscribe-recipe-plus"
           onClick={handleSubscribe}
           disabled={loading}
-          className="h-14 w-full rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-base font-bold text-white shadow-lg transition-all hover:from-amber-600 hover:to-yellow-600 hover:shadow-xl disabled:opacity-80"
+          className="h-14 w-full rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-base font-bold text-white shadow-lg hover:from-amber-600 hover:to-yellow-600 hover:shadow-xl disabled:opacity-80"
         >
           {loading ? (
             <span className="flex items-center gap-2">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <Loader2 className="h-4 w-4 animate-spin" />
               Iniciando pasarela segura...
             </span>
           ) : (
@@ -215,8 +242,6 @@ const RecipePlus = () => {
             </span>
           )}
         </Button>
-
-        {/* Indicador pago seguro */}
         <div className="mt-3 flex items-center justify-center gap-2">
           <Shield className="h-3.5 w-3.5 text-muted-foreground" />
           <p className="text-center text-[11px] text-muted-foreground">
@@ -226,41 +251,60 @@ const RecipePlus = () => {
         </div>
       </section>
 
-      {/* ── NUESTRO PROPIO MODAL (Pop-Up) PARA IZIPAY ─────────────────────── */}
+      {/* ── Modal de pago ──────────────────────────────────────────────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
-            {/* Botón Cerrar */}
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
-            >
-              <X className="h-5 w-5" />
-            </button>
+        <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 max-h-[90dvh] flex flex-col">
 
-            {/* Cabecera del modal */}
-            <div className="border-b px-6 py-5 text-center">
-              <h2 className="font-display text-lg font-bold">Completar Pago</h2>
-              <p className="text-sm text-muted-foreground">Estás a un paso de ser PLUS 👑</p>
-            </div>
-
-            {/* Contenedor donde IziPay inyectará el formulario INLINE */}
-            <div className="p-4 sm:p-6 w-full min-h-[350px] flex items-center justify-center overflow-y-auto">
-              <div id="myPaymentForm" className="w-full">
-                {/* Forzar mostrar Yape y Plin si están habilitados en la cuenta */}
-                <div 
-                  className="kr-smart-form" 
-                  kr-payment-methods='["CARDS", "YAPE", "PLIN"]'
-                  kr-card-form-has-header="true"
-                ></div>
+            {/* Cabecera */}
+            <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
+              <div>
+                <h2 className="font-display text-base font-bold">Completar Pago</h2>
+                <p className="text-xs text-muted-foreground">Estás a un paso de ser PLUS 👑</p>
               </div>
+              <button
+                onClick={closeModal}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            
-            {/* Pie del modal */}
-            <div className="bg-gray-50 px-6 py-4 rounded-b-3xl text-center flex items-center justify-center gap-2">
-              <Shield className="h-4 w-4 text-[#00A09D]" />
-              <p className="text-xs font-medium text-gray-500">
-                Pagos 100% seguros procesados por IziPay
+
+            {/* Cuerpo: el SDK de IziPay inyecta el form aquí */}
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              {/* Spinner mientras el SDK carga */}
+              {!sdkReady && !sdkError && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+                  <p className="text-sm text-muted-foreground">Cargando pasarela de pago...</p>
+                </div>
+              )}
+
+              {/* Error de carga */}
+              {sdkError && (
+                <div className="flex flex-col items-center justify-center py-12 gap-4">
+                  <p className="text-sm text-destructive text-center">{sdkError}</p>
+                  <Button variant="outline" onClick={closeModal}>Cerrar</Button>
+                </div>
+              )}
+
+              {/*
+                Contenedor donde IziPay inyecta el formulario.
+                IMPORTANTE: el id debe ser exactamente "kr-embedded" para que
+                KRGlue.renderElements("#kr-embedded") funcione.
+                Siempre está en el DOM (aunque oculto) para que el SDK pueda encontrarlo.
+              */}
+              <div
+                id="kr-embedded"
+                className={!sdkReady && !sdkError ? "hidden" : ""}
+              />
+            </div>
+
+            {/* Pie */}
+            <div className="shrink-0 bg-gray-50 px-5 py-3 rounded-b-3xl flex items-center justify-center gap-2 border-t">
+              <Shield className="h-3.5 w-3.5 text-[#00A09D]" />
+              <p className="text-xs text-gray-500 font-medium">
+                Pagos 100% seguros · Tarjeta · Yape · Plin
               </p>
             </div>
           </div>
