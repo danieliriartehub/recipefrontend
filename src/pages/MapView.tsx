@@ -316,7 +316,7 @@ const MapView = () => {
       <ScreenHeader
         title="Puntos de reciclaje"
         subtitle={`${filtered.length} punto${filtered.length !== 1 ? "s" : ""} · Campus USIL`}
-        showBell
+        back
       />
 
       <div className="px-5 pt-3 space-y-3">

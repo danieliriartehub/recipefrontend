@@ -1,8 +1,5 @@
-import { ArrowLeft, Bell, Share2 } from "lucide-react";
+import { ArrowLeft, Share2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
 
 interface ScreenHeaderProps {
   title: string;
@@ -10,30 +7,13 @@ interface ScreenHeaderProps {
   back?: boolean;
   /** Acción personalizada al pulsar Atrás. Si no se pasa y back=true, usa nav(-1). */
   onBack?: () => void;
-  showBell?: boolean;
   onShare?: () => void;
   variant?: "light" | "gradient";
 }
 
-export const ScreenHeader = ({ title, subtitle, back, onBack, showBell, onShare, variant = "light" }: ScreenHeaderProps) => {
+export const ScreenHeader = ({ title, subtitle, back, onBack, onShare, variant = "light" }: ScreenHeaderProps) => {
   const nav = useNavigate();
   const isGradient = variant === "gradient";
-  const { user } = useAuth();
-
-  // Cuenta notificaciones sin leer — solo cuando la campana está visible
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["notifications_unread", user?.id],
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user!.id)
-        .eq("read", false);
-      return count ?? 0;
-    },
-    enabled: showBell && !!user,
-    staleTime: 1000 * 60,
-  });
   return (
     <header
       className={`sticky top-0 z-30 px-5 pb-4 pt-[max(env(safe-area-inset-top),16px)] ${
@@ -74,20 +54,6 @@ export const ScreenHeader = ({ title, subtitle, back, onBack, showBell, onShare,
               aria-label="Compartir"
             >
               <Share2 className="h-4 w-4" />
-            </button>
-          )}
-          {showBell && (
-            <button
-              onClick={() => nav("/app/notifications")}
-              className={`relative flex h-10 w-10 items-center justify-center rounded-full transition-smooth ${
-                isGradient ? "bg-white/15 hover:bg-white/25" : "bg-muted hover:bg-muted/70"
-              }`}
-              aria-label="Notificaciones"
-            >
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent" />
-              )}
             </button>
           )}
         </div>

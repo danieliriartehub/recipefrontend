@@ -8,12 +8,10 @@ import {
   getCenters,
   getWalletEntries,
   getMissionsWithProgress,
-  getNotifications,
   getUserBalance,
   getActiveBanners,
 } from "@/lib/api";
 import {
-  Bell,
   ChevronRight,
   Flame,
   MapPin,
@@ -25,6 +23,9 @@ import {
   Target,
   Calculator,
   X,
+  Crown,
+  CheckCircle2,
+  Ticket,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -312,12 +313,6 @@ const Dashboard = () => {
     enabled: !!user,
   });
 
-  const { data: notifications = [] } = useQuery({
-    queryKey: ["notifications", user?.id],
-    queryFn: () => getNotifications(user!.id),
-    enabled: !!user,
-  });
-
   // ── Centro recomendado — el más cercano al usuario con status abierto ────────
   const nearestCenter = useMemo(() => {
     if (!userLocation || !(centers as any[]).length) return null;
@@ -383,8 +378,6 @@ const Dashboard = () => {
 
   // ── Banner IA ─────────────────────────────────────────────────────────────
 
-  const hasUnread = (notifications as any[]).some((n) => !n.read);
-
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <MobileShell>
@@ -410,16 +403,6 @@ const Dashboard = () => {
           >
             <WalletIcon className="h-5 w-5" />
           </Link>
-          <button
-            onClick={() => toast.info("Próximamente")}
-            aria-label="Notificaciones"
-            className="relative flex h-10 w-10 items-center justify-center rounded-full bg-muted hover:bg-muted/70"
-          >
-            <Bell className="h-5 w-5" />
-            {hasUnread && (
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent animate-pulse-glow" />
-            )}
-          </button>
         </div>
       </header>
 
@@ -484,47 +467,78 @@ const Dashboard = () => {
       {/* ── Banners Publicitarios ── */}
       <AdBanners />
 
+      {/* ── Membresía ReciPE PLUS ── */}
+      <section className="px-5 pt-4">
+        {(profile as any)?.is_plus ? (
+          /* ── Estado: PLUS ACTIVO ── */
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-yellow-500 to-amber-600 p-4 text-white shadow-soft">
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/20 blur-xl" />
+            <div className="relative flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur">
+                  <Crown className="h-5 w-5 text-yellow-100" />
+                </div>
+                <div>
+                  <h3 className="font-display text-sm font-extrabold flex items-center gap-1.5">
+                    ReciPE PLUS
+                    <span className="rounded bg-white/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                      ACTIVO ✓
+                    </span>
+                  </h3>
+                  <p className="text-xs text-yellow-50/90 mt-0.5">
+                    {(profile as any)?.plus_expires_at
+                      ? `Válido hasta ${new Date((profile as any).plus_expires_at).toLocaleDateString("es-PE", { day: "numeric", month: "long" })}`
+                      : "Membresía activa · Sin anuncios"}
+                  </p>
+                </div>
+              </div>
+              <CheckCircle2 className="h-5 w-5 text-white/90" />
+            </div>
+          </div>
+        ) : (
+          /* ── Estado: SIN PLUS → navegar a pantalla de suscripción ── */
+          <div
+            role="button"
+            onClick={() => nav("/app/plus")}
+            className="relative cursor-pointer overflow-hidden rounded-3xl bg-gradient-to-r from-yellow-500 to-amber-600 p-4 text-white shadow-card transition-transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/20 blur-xl" />
+            <div className="relative flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur">
+                  <Crown className="h-5 w-5 text-yellow-100" />
+                </div>
+                <div>
+                  <h3 className="font-display text-sm font-extrabold flex items-center gap-1.5">
+                    ReciPE PLUS
+                    <span className="rounded bg-white/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                      S/ 5.99
+                    </span>
+                  </h3>
+                  <p className="text-xs text-yellow-50/90 mt-0.5">Disfruta la app sin anuncios</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-white/80" />
+            </div>
+          </div>
+        )}
+      </section>
+
 
       {/* ── Quick actions (estático, no requiere datos remotos) ── */}
       <section className="px-5 pt-4">
         <div className="grid grid-cols-2 gap-3">
           <Link
-            to="/app/map"
+            to="/app/coupons"
             className="rounded-3xl bg-card p-4 shadow-card transition-bounce hover:-translate-y-0.5"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/15 text-secondary">
-              <MapPin className="h-5 w-5" />
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15 text-orange-500">
+              <Ticket className="h-5 w-5" />
             </span>
             <p className="mt-3 font-display text-base font-extrabold leading-tight">
-              Centros<br />cercanos
+              Mis<br />Cupones
             </p>
-            <p className="text-[10px] text-muted-foreground">Mapa en tiempo real</p>
-          </Link>
-
-          <Link
-            to="/app/marketplace"
-            className="rounded-3xl bg-card p-4 shadow-card transition-bounce hover:-translate-y-0.5"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-accent-foreground">
-              <ShoppingBag className="h-5 w-5" />
-            </span>
-            <p className="mt-3 font-display text-base font-extrabold leading-tight">
-              Eco<br />Marketplace
-            </p>
-            <p className="text-[10px] text-muted-foreground">Canjea recompensas</p>
-          </Link>
-
-          <Link
-            to="/app/qr"
-            className="rounded-3xl bg-card p-4 shadow-card transition-bounce hover:-translate-y-0.5"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
-              <QrCode className="h-5 w-5" />
-            </span>
-            <p className="mt-3 font-display text-base font-extrabold leading-tight">
-              Mi QR<br />RECIPE
-            </p>
-            <p className="text-[10px] text-muted-foreground">Validación rápida</p>
+            <p className="text-[10px] text-muted-foreground">Tus recompensas</p>
           </Link>
 
           <Link
@@ -541,71 +555,6 @@ const Dashboard = () => {
           </Link>
         </div>
       </section>
-
-      {/* ── Centro recomendado — más cercano según geolocalización ── */}
-      <section className="px-5 pt-5">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="font-display text-sm font-bold text-muted-foreground">RECOMENDADO</h3>
-          <Link to="/app/map" className="text-xs font-semibold text-primary">Ver mapa →</Link>
-        </div>
-
-        {/* Cargando centros o esperando permiso de ubicación */}
-        {(loadingCenters || (!userLocation && !locationError)) ? (
-          <Skeleton className="h-24" />
-        ) : locationError || !nearestCenter ? (
-          /* Sin permiso de ubicación o sin centros abiertos */
-          <Link
-            to="/app/map"
-            className="flex items-center gap-3 rounded-3xl bg-card p-5 shadow-soft transition-bounce hover:-translate-y-0.5"
-          >
-            <MapPin className="h-8 w-8 flex-none text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">Activa tu ubicación</p>
-              <p className="text-xs text-muted-foreground">
-                para ver el centro más cercano
-              </p>
-            </div>
-            <ChevronRight className="h-5 w-5 flex-none text-muted-foreground" />
-          </Link>
-        ) : (
-          /* Centro más cercano con distancia real */
-          <Link
-            to={`/app/center/${nearestCenter.id}`}
-            className="block rounded-3xl bg-card p-4 shadow-soft transition-bounce hover:-translate-y-0.5"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h4 className="truncate font-display text-base font-extrabold">{nearestCenter.name}</h4>
-                  <span className="flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success-foreground">
-                    <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-                    Abierto
-                  </span>
-                </div>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {nearestCenter.district} · {nearestCenter.address}
-                </p>
-                <div className="mt-3 flex items-center gap-4 text-xs">
-                  <span className="flex items-center gap-1 font-semibold">
-                    <MapPin className="h-3.5 w-3.5 text-primary" />
-                    {getDistanceKm(
-                      userLocation!.lat, userLocation!.lng,
-                      nearestCenter.lat, nearestCenter.lng
-                    ).toFixed(1)} km
-                  </span>
-                  <span className="flex items-center gap-1 font-semibold">
-                    <Navigation className="h-3.5 w-3.5 text-primary" />
-                    ~{nearestCenter.wait_minutes ?? 0} min espera
-                  </span>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            </div>
-          </Link>
-        )}
-      </section>
-
-
 
       {/* ── Modal de Publicidad por Sesión ── */}
       <SessionBannerModal />

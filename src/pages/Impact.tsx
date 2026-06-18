@@ -42,7 +42,7 @@ const Impact = () => {
 
   return (
     <MobileShell>
-      <ScreenHeader title="Tu impacto" subtitle="Lo que estás cambiando en Lima" showBell />
+      <ScreenHeader title="Tu impacto" subtitle="Lo que estás cambiando en Lima" />
 
       <div className="px-5 space-y-5 pb-4">
         {/* Hero CO2 */}

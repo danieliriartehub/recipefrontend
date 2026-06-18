@@ -13,7 +13,7 @@ const Community = () => {
 
   return (
     <MobileShell>
-      <ScreenHeader title="Comunidad" subtitle="Compite, suma y desbloquea badges" showBell />
+      <ScreenHeader title="Comunidad" subtitle="Compite, suma y desbloquea badges" />
 
       <div className="px-5">
         {/* My team banner */}
