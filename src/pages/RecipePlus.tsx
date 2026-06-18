@@ -71,8 +71,11 @@ const RecipePlus = () => {
     div.setAttribute("kr-form-token", formTokenRef.current);
     div.setAttribute("kr-card-form-expanded", "true");
 
-    // Notificar al SDK que hay un nuevo formulario para procesar
-    // KR.renderElements escanea el DOM buscando .kr-smart-form
+    // Sin kr-card-form-expanded → Smart Form muestra lista completa:
+    // Tarjeta, Yape, Plin (los que estén habilitados en el panel IziPay)
+    div.removeAttribute("kr-card-form-expanded");
+
+    // Decirle al SDK que escanee y renderice el formulario
     if (typeof KR !== "undefined" && typeof KR?.renderElements === "function") {
       KR.renderElements(".kr-smart-form").catch((e: any) => {
         console.warn("[IziPay] renderElements:", e?.message);
