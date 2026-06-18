@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import {
   ChevronRight, HelpCircle, LogOut, Pencil, Settings,
   Shield, Ticket, ShoppingBag, Wallet as WalletIcon, Trophy,
-  Calculator, ArrowDownLeft, ArrowUpRight, Loader2, X,
+  Calculator, ArrowDownLeft, ArrowUpRight, Loader2, X, Crown,
 } from "lucide-react";
 import { toast } from "sonner";
 
