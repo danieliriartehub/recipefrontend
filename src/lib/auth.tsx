@@ -20,6 +20,8 @@ export interface Profile {
   level_index: number
   weekly_goal_kg: number
   qr_code: string | null
+  is_plus: boolean
+  plus_expires_at: string | null
 }
 
 interface AuthContextType {
