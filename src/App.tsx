@@ -26,6 +26,7 @@ import ScanAI from "./pages/ScanAI";
 import Marketplace from "./pages/Marketplace";
 import MerchantProfile from "./pages/MerchantProfile";
 import Wallet from "./pages/Wallet";
+import RecipePlus from "./pages/RecipePlus";
 import { GlobalRandomAd } from "./components/GlobalRandomAd";
 
 const queryClient = new QueryClient({
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="/app/scan" element={<ProtectedRoute><ScanAI /></ProtectedRoute>} />
             <Route path="/app/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
             <Route path="/app/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+            <Route path="/app/plus" element={<ProtectedRoute><RecipePlus /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>
