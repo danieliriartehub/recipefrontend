@@ -4,9 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { getTargetedBanner, trackBanner } from "@/lib/api";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { X } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 export const GlobalRandomAd = () => {
   const location = useLocation();
+  const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState<any>(null);
 
@@ -14,11 +16,12 @@ export const GlobalRandomAd = () => {
     queryKey: ["targetedBanner"],
     queryFn: getTargetedBanner,
     staleTime: 1000 * 60 * 5,
+    enabled: !profile?.is_plus,
   });
 
   useEffect(() => {
-    // Solo mostrar en rutas protegidas y que no sean la raiz si no hay sesión
     if (!location.pathname.startsWith('/app')) return;
+    if (profile?.is_plus) return;
     
     // Ignoramos la carga inicial en /app porque allí ya sale el SessionBannerModal
     // Podemos llevar un conteo de movimientos en sessionStorage

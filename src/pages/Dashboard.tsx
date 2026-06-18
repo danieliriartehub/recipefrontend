@@ -62,16 +62,17 @@ function toLocalDate(d: Date): string {
 }
 
 // ─── Componente de Banners ────────────────────────────────────────────────────
-const AdBanners = () => {
+const AdBanners = ({ isPlus }: { isPlus: boolean }) => {
   const { data: banners = [] } = useQuery({
     queryKey: ["activeBanners"],
     queryFn: getActiveBanners,
     staleTime: 1000 * 60 * 5,
+    enabled: !isPlus,
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const visibleBanners = banners;
+  const visibleBanners = isPlus ? [] : banners;
 
   useEffect(() => {
     if (visibleBanners.length <= 1) return;
@@ -129,18 +130,19 @@ const AdBanners = () => {
 };
 
 // ─── Modal de Banner de Sesión ─────────────────────────────────────────────────
-const SessionBannerModal = () => {
+const SessionBannerModal = ({ isPlus }: { isPlus: boolean }) => {
   const { data: banners = [] } = useQuery({
     queryKey: ["activeBanners"],
     queryFn: getActiveBanners,
     staleTime: 1000 * 60 * 5,
+    enabled: !isPlus,
   });
 
   const [isOpen, setIsOpen] = useState(false);
   const [selectedBanner, setSelectedBanner] = useState<any>(null);
 
   useEffect(() => {
-    if (banners.length === 0) return;
+    if (isPlus || banners.length === 0) return;
     
     // Check if shown in this session to prevent double pop-ups with GlobalRandomAd
     const hasShown = sessionStorage.getItem('session_banner_shown');
@@ -465,7 +467,7 @@ const Dashboard = () => {
       </section>
 
       {/* ── Banners Publicitarios ── */}
-      <AdBanners />
+      <AdBanners isPlus={profile?.is_plus ?? false} />
 
       {/* ── Membresía ReciPE PLUS ── */}
       <section className="px-5 pt-4">
@@ -557,7 +559,7 @@ const Dashboard = () => {
       </section>
 
       {/* ── Modal de Publicidad por Sesión ── */}
-      <SessionBannerModal />
+      <SessionBannerModal isPlus={profile?.is_plus ?? false} />
 
     </MobileShell>
   );
