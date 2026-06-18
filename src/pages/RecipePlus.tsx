@@ -234,7 +234,7 @@ const RecipePlus = () => {
           </div>
 
           {/* Cuerpo */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto flex flex-col items-center py-4 px-4">
             {/* Spinner si KR aún no está listo */}
             {isModalOpen && !krReady && (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -243,24 +243,16 @@ const RecipePlus = () => {
               </div>
             )}
 
-            {/*
-              div.kr-smart-form: siempre en el DOM.
-              Los atributos kr-form-token y kr-card-form-expanded se ponen
-              con setAttribute() en el useEffect — NO en JSX — porque React
-              filtra atributos no estándar y el SDK no los vería.
-            */}
             <div
               ref={krFormDivRef}
-              className="kr-smart-form"
+              className="kr-smart-form w-full"
             />
           </div>
 
           {/* Pie */}
           <div className="shrink-0 bg-gray-50 px-5 py-3 rounded-b-3xl flex items-center justify-center gap-2 border-t">
             <Shield className="h-3.5 w-3.5 text-[#00A09D]" />
-            <p className="text-xs text-gray-500 font-medium">
-              Pagos 100% seguros · Tarjeta · Yape · Plin
-            </p>
+            <p className="text-xs text-gray-500 font-medium">Pagos 100% seguros con IziPay</p>
           </div>
         </div>
       </div>
