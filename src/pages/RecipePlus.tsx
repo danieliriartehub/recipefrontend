@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { createPaymentSession } from "@/lib/api";
 import {
   Crown, Check, ArrowLeft, Sparkles, Shield, Zap, Star,
-  ExternalLink,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
@@ -51,12 +51,15 @@ const RecipePlus = () => {
   const navigate = useNavigate();
   const { profile, refreshProfile } = useAuth();
   const [loading, setLoading] = useState(false);
+  
+  // Estados para nuestro propio Pop-Up de React
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [formToken, setFormToken] = useState<string | null>(null);
   const isSDKLoaded = useRef(false);
 
-  // Cargar SDK de IziPay cuando haya un token disponible
+  // Cargar SDK de IziPay (modo INLINE) dentro de nuestro Modal
   useEffect(() => {
-    if (formToken && !isSDKLoaded.current) {
+    if (isModalOpen && formToken && !isSDKLoaded.current) {
       isSDKLoaded.current = true;
 
       KRGlue.loadLibrary(IZIPAY_DOMAIN, IZIPAY_PUBLIC_KEY)
@@ -67,27 +70,19 @@ const RecipePlus = () => {
           })
         )
         .then(({ KR }) => KR.onSubmit(onPaymentComplete))
-        // Al usar un div estático con clase kr-embedded, no llamamos a addForm
-        .then(({ KR }) => KR.showForm("myPaymentForm"))
-        .then(() => {
-          setLoading(false);
-          // Disparamos el botón generado por IziPay para abrir el modal
-          setTimeout(() => {
-            const btn = document.querySelector(".kr-popin-button") as HTMLButtonElement;
-            if (btn) btn.click();
-          }, 300);
-        })
+        // Usamos addForm para inyectarlo en nuestro div limpio
+        .then(({ KR }) => KR.addForm("#myPaymentForm"))
+        .then(({ KR, result }) => KR.showForm(result.formId))
         .catch((error) => {
           console.error("IziPay SDK load error", error);
-          toast.error("Error al cargar la pasarela de pagos flotante");
-          setLoading(false);
-          setFormToken(null);
+          toast.error("Error al cargar la pasarela de pagos.");
+          setIsModalOpen(false);
           isSDKLoaded.current = false;
         });
     }
-  }, [formToken]);
+  }, [isModalOpen, formToken]);
 
-  // Callback cuando se completa la transacción en el pop-in
+  // Callback cuando se completa la transacción
   const onPaymentComplete = async (paymentData: any) => {
     if (paymentData.clientAnswer.orderStatus === "PAID") {
       toast.success("¡Pago exitoso! Bienvenido a RECIPE Plus 👑");
@@ -95,32 +90,33 @@ const RecipePlus = () => {
       setTimeout(() => navigate("/app/profile"), 1500);
     } else {
       toast.error("El pago no se pudo procesar. Intenta nuevamente.");
-      setFormToken(null);
+      setIsModalOpen(false);
       isSDKLoaded.current = false;
+      setFormToken(null);
     }
     return false; 
   };
 
   const handleSubscribe = async () => {
+    // Si ya lo teníamos, solo abrimos el modal
     if (formToken) {
-      // Si ya tenemos el token cargado y cerraron el modal, solo lo reabrimos
-      const btn = document.querySelector(".kr-popin-button") as HTMLButtonElement;
-      if (btn) btn.click();
+      setIsModalOpen(true);
       return;
     }
 
     try {
       setLoading(true);
-      // Llama a nuestro backend para obtener el token
       const res = await createPaymentSession();
       if (res && res.formToken) {
         setFormToken(res.formToken);
+        setIsModalOpen(true);
       } else {
         throw new Error("No form token returned");
       }
     } catch (err) {
       console.error(err);
       toast.error("No se pudo iniciar el pago. Intenta más tarde.");
+    } finally {
       setLoading(false);
     }
   };
@@ -129,11 +125,9 @@ const RecipePlus = () => {
     <MobileShell>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="relative overflow-hidden bg-gradient-to-br from-amber-500 via-yellow-500 to-amber-600 px-5 pb-10 pt-[max(env(safe-area-inset-top),20px)] text-white">
-        {/* Decoración */}
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
         <div className="absolute -left-8 bottom-0 h-28 w-28 rounded-full bg-white/10 blur-xl" />
 
-        {/* Botón volver */}
         <button
           onClick={() => navigate(-1)}
           className="relative mb-5 flex items-center gap-1.5 text-sm font-medium text-white/80 hover:text-white transition-colors"
@@ -142,7 +136,6 @@ const RecipePlus = () => {
           Volver al perfil
         </button>
 
-        {/* Ícono + título */}
         <div className="relative flex flex-col items-center text-center">
           <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/20 shadow-xl backdrop-blur ring-4 ring-white/30">
             <Crown className="h-10 w-10 text-white" />
@@ -154,7 +147,6 @@ const RecipePlus = () => {
             La experiencia premium de reciclaje universitario
           </p>
 
-          {/* Badge precio */}
           <div className="mt-4 flex items-baseline gap-1 rounded-2xl bg-white/20 px-5 py-2 backdrop-blur">
             <span className="font-display text-3xl font-extrabold">S/ 5.99</span>
             <span className="text-sm font-medium text-yellow-50/80">/ mes</span>
@@ -204,16 +196,6 @@ const RecipePlus = () => {
         </div>
       </section>
 
-      {/* ── Ocultar el botón nativo de IziPay para usar el nuestro ── */}
-      <style>{`
-        .kr-popin-button {
-          display: none !important;
-        }
-      `}</style>
-
-      {/* ── Contenedor IziPay (Pop-In) ────────────────────────────────────── */}
-      <div id="myPaymentForm" className="kr-embedded" kr-popin="kr-popin"></div>
-
       {/* ── CTA Principal ──────────────────────────────────────────────────── */}
       <section className="px-5 py-6">
         <Button
@@ -243,12 +225,41 @@ const RecipePlus = () => {
             <span className="font-semibold text-[#00A09D]">IziPay</span>
           </p>
         </div>
-
-        {/* Métodos de pago aceptados */}
-        <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          Acepta Visa · Mastercard · Amex · Yape · QR
-        </p>
       </section>
+
+      {/* ── NUESTRO PROPIO MODAL (Pop-Up) PARA IZIPAY ─────────────────────── */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* Botón Cerrar */}
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Cabecera del modal */}
+            <div className="border-b px-6 py-5 text-center">
+              <h2 className="font-display text-lg font-bold">Completar Pago</h2>
+              <p className="text-sm text-muted-foreground">Estás a un paso de ser PLUS 👑</p>
+            </div>
+
+            {/* Contenedor donde IziPay inyectará el formulario INLINE */}
+            <div className="p-2 min-h-[350px] flex items-center justify-center">
+              <div id="myPaymentForm" className="w-full"></div>
+            </div>
+            
+            {/* Pie del modal */}
+            <div className="bg-gray-50 px-6 py-4 rounded-b-3xl text-center flex items-center justify-center gap-2">
+              <Shield className="h-4 w-4 text-[#00A09D]" />
+              <p className="text-xs font-medium text-gray-500">
+                Pagos 100% seguros procesados por IziPay
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </MobileShell>
   );
 };
