@@ -70,9 +70,8 @@ const RecipePlus = () => {
           })
         )
         .then(({ KR }) => KR.onSubmit(onPaymentComplete))
-        // Al usar kr-smart-form definido en el DOM, usamos attachForm en lugar de addForm
-        .then(({ KR }) => KR.attachForm("#myPaymentForm"))
-        .then(({ KR, result }) => KR.showForm(result.formId))
+        // Reemplazamos attachForm obsoleto por renderElements (recomendado para Smart Forms)
+        .then(({ KR }) => KR.renderElements("#myPaymentForm"))
         .catch((error) => {
           console.error("IziPay SDK load error", error);
           toast.error("Error al cargar la pasarela de pagos.");
@@ -246,10 +245,14 @@ const RecipePlus = () => {
             </div>
 
             {/* Contenedor donde IziPay inyectará el formulario INLINE */}
-            <div className="p-2 min-h-[350px] flex items-center justify-center">
+            <div className="p-4 sm:p-6 w-full min-h-[350px] flex items-center justify-center overflow-y-auto">
               <div id="myPaymentForm" className="w-full">
-                {/* kr-smart-form despliega Tarjeta, Yape, Plin y más */}
-                <div className="kr-smart-form"></div>
+                {/* Forzar mostrar Yape y Plin si están habilitados en la cuenta */}
+                <div 
+                  className="kr-smart-form" 
+                  kr-payment-methods="['CARDS', 'YAPE', 'PLIN']"
+                  kr-card-form-has-header="true"
+                ></div>
               </div>
             </div>
             
