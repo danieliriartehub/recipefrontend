@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── IziPay Smart Form: centrar dentro del modal ── */
+.kr-smart-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.kr-smart-form .kr-payment-form,
+.kr-smart-form .kr-embedded {
+  width: 100% !important;
+  max-width: 380px;
+  margin: 0 auto;
+}
+/* Quitar margen extra que inyecta el SDK */
+.kr-smart-form .kr-form-error {
+  max-width: 380px;
+  margin: 4px auto 0;
+}
+
 @layer base {
   :root {
     /* Base */
