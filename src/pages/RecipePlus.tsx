@@ -9,38 +9,13 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 
-// KR es el objeto global que inyecta kr-payment-form.min.js desde index.html
 declare const KR: any;
 
 const BENEFITS = [
-  {
-    icon: Shield,
-    title: "Sin anuncios",
-    desc: "Navega por toda la app sin ninguna interrupción publicitaria.",
-    color: "text-emerald-500",
-    bg: "bg-emerald-50",
-  },
-  {
-    icon: Crown,
-    title: "Badge exclusivo",
-    desc: "Muestra tu insignia PLUS en tu perfil y destaca en la comunidad.",
-    color: "text-amber-500",
-    bg: "bg-amber-50",
-  },
-  {
-    icon: Zap,
-    title: "Acceso anticipado",
-    desc: "Sé el primero en probar nuevas funciones antes que nadie.",
-    color: "text-blue-500",
-    bg: "bg-blue-50",
-  },
-  {
-    icon: Star,
-    title: "Apoya la misión",
-    desc: "Tu suscripción financia la expansión de centros de reciclaje en campus.",
-    color: "text-purple-500",
-    bg: "bg-purple-50",
-  },
+  { icon: Shield,   title: "Sin anuncios",      desc: "Navega por toda la app sin ninguna interrupción publicitaria.",                          color: "text-emerald-500", bg: "bg-emerald-50" },
+  { icon: Crown,    title: "Badge exclusivo",    desc: "Muestra tu insignia PLUS en tu perfil y destaca en la comunidad.",                      color: "text-amber-500",   bg: "bg-amber-50"   },
+  { icon: Zap,      title: "Acceso anticipado",  desc: "Sé el primero en probar nuevas funciones antes que nadie.",                             color: "text-blue-500",    bg: "bg-blue-50"    },
+  { icon: Star,     title: "Apoya la misión",    desc: "Tu suscripción financia la expansión de centros de reciclaje en campus.",               color: "text-purple-500",  bg: "bg-purple-50"  },
 ];
 
 const RecipePlus = () => {
@@ -49,22 +24,19 @@ const RecipePlus = () => {
 
   const [loading, setLoading]         = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formToken, setFormToken]     = useState<string | null>(null);
   const [krReady, setKrReady]         = useState(false);
 
-  const formTokenRef = useRef<string | null>(null);
+  const formTokenRef  = useRef<string | null>(null);
+  // Ref directo al div del formulario para poder llamar setAttribute
+  const krFormDivRef  = useRef<HTMLDivElement | null>(null);
 
-  // ── Registrar el callback de KR.onSubmit una sola vez cuando KR está listo ──
-  // KR se inyecta globalmente desde index.html — esperamos a que exista
+  // ── Esperar a que KR global esté disponible y registrar onSubmit ──────────
   useEffect(() => {
     let attempts = 0;
-    const maxAttempts = 20; // 2 segundos máximo
-
-    const waitForKR = setInterval(() => {
+    const timer = setInterval(() => {
       attempts++;
-      if (typeof KR !== "undefined" && KR?.onSubmit) {
-        clearInterval(waitForKR);
-
+      if (typeof KR !== "undefined" && typeof KR?.onSubmit === "function") {
+        clearInterval(timer);
         KR.onSubmit(async (paymentData: any) => {
           const status = paymentData?.clientAnswer?.orderStatus;
           if (status === "PAID") {
@@ -75,36 +47,53 @@ const RecipePlus = () => {
           } else {
             toast.error("El pago no se pudo procesar. Intenta nuevamente.");
           }
-          return false; // prevenir redirect automático
+          return false;
         });
-
         setKrReady(true);
-      } else if (attempts >= maxAttempts) {
-        clearInterval(waitForKR);
-        console.error("[IziPay] KR global no disponible tras esperar 2s");
+      } else if (attempts >= 30) {
+        clearInterval(timer);
+        console.error("[IziPay] KR global no disponible");
       }
     }, 100);
-
-    return () => clearInterval(waitForKR);
+    return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Cuando el modal se abre + tenemos token + div existe: inyectar token ──
+  // React descarta atributos desconocidos (kr-form-token) en el JSX,
+  // así que usamos setAttribute directamente sobre el nodo DOM real.
+  useEffect(() => {
+    if (!isModalOpen || !formTokenRef.current || !krFormDivRef.current) return;
+
+    const div = krFormDivRef.current;
+
+    // Poner atributos que el SDK de IziPay necesita ver en el DOM real
+    div.setAttribute("kr-form-token", formTokenRef.current);
+    div.setAttribute("kr-card-form-expanded", "true");
+
+    // Notificar al SDK que hay un nuevo formulario para procesar
+    // KR.renderElements escanea el DOM buscando .kr-smart-form
+    if (typeof KR !== "undefined" && typeof KR?.renderElements === "function") {
+      KR.renderElements(".kr-smart-form").catch((e: any) => {
+        console.warn("[IziPay] renderElements:", e?.message);
+      });
+    }
+  }, [isModalOpen]);
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
   }, []);
 
-  // ── Obtener formToken del backend y abrir modal ───────────────────────────
+  // ── Obtener formToken y abrir modal ───────────────────────────────────────
   const handleSubscribe = async () => {
     if (isModalOpen) return;
 
-    // Reusar token si ya existe (evita crear sesión nueva)
     if (!formTokenRef.current) {
       try {
         setLoading(true);
         const res = await createPaymentSession();
         if (!res?.formToken) throw new Error("Sin formToken");
         formTokenRef.current = res.formToken;
-        setFormToken(res.formToken);
       } catch {
         toast.error("No se pudo iniciar el pago. Intenta más tarde.");
         return;
@@ -205,10 +194,10 @@ const RecipePlus = () => {
       </section>
 
       {/*
-        ── Modal de pago ─────────────────────────────────────────────────────
-        Siempre montado en el DOM — visibilidad controlada por CSS.
-        El div.kr-smart-form con kr-form-token es detectado automáticamente
-        por el SDK global (kr-payment-form.min.js) cuando el atributo cambia.
+        ── Modal de pago — siempre en el DOM (visibilidad CSS) ───────────────
+        El div.kr-smart-form siempre existe; los atributos kr-* se inyectan
+        con setAttribute() desde el useEffect (React descarta atributos
+        desconocidos en JSX, por eso no funcionaba antes).
       */}
       <div
         role="dialog"
@@ -242,9 +231,9 @@ const RecipePlus = () => {
           </div>
 
           {/* Cuerpo */}
-          <div className="flex-1 overflow-y-auto px-4 py-5">
-            {/* Spinner mientras no hay token o KR no está listo */}
-            {(!formToken || !krReady) && (
+          <div className="flex-1 overflow-y-auto">
+            {/* Spinner si KR aún no está listo */}
+            {isModalOpen && !krReady && (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
                 <p className="text-sm text-muted-foreground">Cargando pasarela de pago...</p>
@@ -252,20 +241,15 @@ const RecipePlus = () => {
             )}
 
             {/*
-              Formulario IziPay según documentación oficial:
-              - class="kr-smart-form" → SDK detecta y renderiza el formulario
-              - kr-form-token → el token generado por el backend
-              - kr-card-form-expanded → muestra el form de tarjeta expandido por defecto
-              El SDK de IziPay (cargado en index.html) escanea el DOM y
-              renderiza el formulario cuando encuentra este div.
+              div.kr-smart-form: siempre en el DOM.
+              Los atributos kr-form-token y kr-card-form-expanded se ponen
+              con setAttribute() en el useEffect — NO en JSX — porque React
+              filtra atributos no estándar y el SDK no los vería.
             */}
-            {formToken && krReady && (
-              <div
-                className="kr-smart-form"
-                kr-form-token={formToken}
-                kr-card-form-expanded="true"
-              />
-            )}
+            <div
+              ref={krFormDivRef}
+              className="kr-smart-form"
+            />
           </div>
 
           {/* Pie */}
