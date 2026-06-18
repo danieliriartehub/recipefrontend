@@ -376,3 +376,12 @@ export async function createPaymentSession() {
   return backendApi.withToken(token).post<{formToken: string; orderId: string}>('/api/v1/payments/create-session')
 }
 
+export async function getSubscriptionStatus() {
+  const token = await getToken()
+  return backendApi.withToken(token).get<{
+    is_plus: boolean
+    plus_expires_at: string | null
+    plan: string | null
+  }>('/api/v1/payments/subscription/me')
+}
+
