@@ -7,7 +7,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import KRGlue from "@lyracom/embedded-form-glue";
 import { toast } from "sonner";
 
@@ -52,10 +52,19 @@ const RecipePlus = () => {
   const { profile, refreshProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formToken, setFormToken] = useState<string | null>(null);
+  const isSDKLoaded = useRef(false);
 
   // Cargar SDK de IziPay cuando haya un token disponible
   useEffect(() => {
-    if (formToken) {
+    if (formToken && !isSDKLoaded.current) {
+      isSDKLoaded.current = true;
+      
+      // Asegurarnos de que el contenedor esté limpio (React Strict Mode)
+      const container = document.getElementById("myPaymentForm");
+      if (container) {
+        container.innerHTML = "";
+      }
+
       KRGlue.loadLibrary(IZIPAY_DOMAIN, IZIPAY_PUBLIC_KEY)
         .then(({ KR }) =>
           KR.setFormConfig({
@@ -71,6 +80,7 @@ const RecipePlus = () => {
           toast.error("Error al cargar la pasarela de pagos flotante");
           setLoading(false);
           setFormToken(null);
+          isSDKLoaded.current = false;
         });
     }
   }, [formToken]);
