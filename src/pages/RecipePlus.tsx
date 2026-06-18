@@ -58,12 +58,6 @@ const RecipePlus = () => {
   useEffect(() => {
     if (formToken && !isSDKLoaded.current) {
       isSDKLoaded.current = true;
-      
-      // Asegurarnos de que el contenedor esté limpio (React Strict Mode)
-      const container = document.getElementById("myPaymentForm");
-      if (container) {
-        container.innerHTML = "";
-      }
 
       KRGlue.loadLibrary(IZIPAY_DOMAIN, IZIPAY_PUBLIC_KEY)
         .then(({ KR }) =>
@@ -73,8 +67,8 @@ const RecipePlus = () => {
           })
         )
         .then(({ KR }) => KR.onSubmit(onPaymentComplete))
-        .then(({ KR }) => KR.addForm("#myPaymentForm"))
-        .then(({ KR, result }) => KR.showForm(result.formId))
+        // Al usar un div estático con clase kr-embedded, no llamamos a addForm
+        .then(({ KR }) => KR.showForm("myPaymentForm"))
         .catch((error) => {
           console.error("IziPay SDK load error", error);
           toast.error("Error al cargar la pasarela de pagos flotante");
