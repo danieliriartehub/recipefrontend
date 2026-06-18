@@ -3,26 +3,25 @@ import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { Logo } from "@/components/recipe/Logo";
 import { Button } from "@/components/ui/button";
-import { MapPin, QrCode, Gift, TreePine } from "lucide-react";
+import onboardingMapImg from "@/assets/onboarding-map.png";
+import onboardingQrImg from "@/assets/onboarding-qr.png";
+import onboardingRewardsImg from "@/assets/onboarding-rewards.png";
 
 const STEPS = [
   {
-    icon: MapPin,
+    image: onboardingMapImg,
     title: "Encuentra puntos cercanos",
     body: "Mapa inteligente con estados en tiempo real: abierto, lleno, mantenimiento o campañas móviles.",
-    tint: "from-primary to-primaryGlow",
   },
   {
-    icon: QrCode,
+    image: onboardingQrImg,
     title: "Valida con tu QR",
     body: "Muestra tu QR personal al operador y suma EcoPuntos automáticamente. Sin papel, sin filas.",
-    tint: "from-secondary to-primary",
   },
   {
-    icon: Gift,
+    image: onboardingRewardsImg,
     title: "Canjea recompensas",
     body: "Cafés, transporte, cursos y más.",
-    tint: "from-primaryGlow to-accent",
   },
 ];
 
@@ -30,7 +29,6 @@ const Onboarding = () => {
   const [i, setI] = useState(0);
   const nav = useNavigate();
   const step = STEPS[i];
-  const Icon = step.icon;
   const last = i === STEPS.length - 1;
 
   return (
@@ -42,8 +40,12 @@ const Onboarding = () => {
         </div>
 
         <div className="mt-12 flex flex-1 flex-col items-center text-center">
-          <div className={`flex h-44 w-44 items-center justify-center rounded-[40px] bg-gradient-to-br ${step.tint} text-primary-foreground shadow-float animate-scale-in`}>
-            <Icon className="h-20 w-20" strokeWidth={1.8} />
+          <div className="animate-scale-in">
+            <img
+              src={step.image}
+              alt={step.title}
+              className="h-52 w-52 rounded-[40px] object-cover shadow-float"
+            />
           </div>
 
           <div key={i} className="mt-10 max-w-xs animate-slide-up">
