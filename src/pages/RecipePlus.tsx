@@ -97,8 +97,8 @@ const RecipePlus = () => {
       setLoading(true);
       // Llama a nuestro backend para obtener el token
       const res = await createPaymentSession();
-      if (res.data && res.data.formToken) {
-        setFormToken(res.data.formToken);
+      if (res && res.formToken) {
+        setFormToken(res.formToken);
       } else {
         throw new Error("No form token returned");
       }
