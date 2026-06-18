@@ -69,6 +69,14 @@ const RecipePlus = () => {
         .then(({ KR }) => KR.onSubmit(onPaymentComplete))
         // Al usar un div estático con clase kr-embedded, no llamamos a addForm
         .then(({ KR }) => KR.showForm("myPaymentForm"))
+        .then(() => {
+          setLoading(false);
+          // Disparamos el botón generado por IziPay para abrir el modal
+          setTimeout(() => {
+            const btn = document.querySelector(".kr-popin-button") as HTMLButtonElement;
+            if (btn) btn.click();
+          }, 300);
+        })
         .catch((error) => {
           console.error("IziPay SDK load error", error);
           toast.error("Error al cargar la pasarela de pagos flotante");
@@ -83,20 +91,24 @@ const RecipePlus = () => {
   const onPaymentComplete = async (paymentData: any) => {
     if (paymentData.clientAnswer.orderStatus === "PAID") {
       toast.success("¡Pago exitoso! Bienvenido a RECIPE Plus 👑");
-      // Refrescar el perfil para que is_plus se actualice en la UI
       await refreshProfile();
-      // Volver al perfil
       setTimeout(() => navigate("/app/profile"), 1500);
     } else {
       toast.error("El pago no se pudo procesar. Intenta nuevamente.");
       setFormToken(null);
-      setLoading(false);
+      isSDKLoaded.current = false;
     }
-    // Retornar false previene la redirección automática del SDK
     return false; 
   };
 
   const handleSubscribe = async () => {
+    if (formToken) {
+      // Si ya tenemos el token cargado y cerraron el modal, solo lo reabrimos
+      const btn = document.querySelector(".kr-popin-button") as HTMLButtonElement;
+      if (btn) btn.click();
+      return;
+    }
+
     try {
       setLoading(true);
       // Llama a nuestro backend para obtener el token
@@ -192,6 +204,13 @@ const RecipePlus = () => {
         </div>
       </section>
 
+      {/* ── Ocultar el botón nativo de IziPay para usar el nuestro ── */}
+      <style>{`
+        .kr-popin-button {
+          display: none !important;
+        }
+      `}</style>
+
       {/* ── Contenedor IziPay (Pop-In) ────────────────────────────────────── */}
       <div id="myPaymentForm" className="kr-embedded" kr-popin="kr-popin"></div>
 
@@ -200,7 +219,7 @@ const RecipePlus = () => {
         <Button
           id="btn-subscribe-recipe-plus"
           onClick={handleSubscribe}
-          disabled={loading || formToken !== null}
+          disabled={loading}
           className="h-14 w-full rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-base font-bold text-white shadow-lg transition-all hover:from-amber-600 hover:to-yellow-600 hover:shadow-xl disabled:opacity-80"
         >
           {loading ? (
