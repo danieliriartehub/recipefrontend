@@ -3,12 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { useAuth } from "@/lib/auth";
 import { getUserBalance, getRecentTransactions, updateProfile } from "@/lib/api";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   ChevronRight, HelpCircle, LogOut, Pencil, Settings,
   Shield, Ticket, ShoppingBag, Wallet as WalletIcon, Trophy,
-  Calculator, ArrowDownLeft, ArrowUpRight, Crown,
+  Calculator, ArrowDownLeft, ArrowUpRight, Loader2, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,6 +38,43 @@ const Profile = () => {
     staleTime: 0,
   });
 
+  const { mutateAsync: updateProfileMut, isPending } = useMutation({
+    mutationFn: (updates: { full_name?: string; username?: string; career?: string }) =>
+      updateProfile(user!.id, updates),
+    onSuccess: async () => {
+      await refreshProfile();
+      toast.success("Perfil actualizado correctamente");
+      setIsEditing(false);
+    },
+    onError: () => {
+      toast.error("Ocurrió un error al actualizar el perfil");
+    },
+  });
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    full_name: "",
+    username: "",
+    career: "",
+  });
+
+  const handleEditClick = () => {
+    setEditForm({
+      full_name: profile?.full_name ?? "",
+      username: profile?.username ?? "",
+      career: profile?.career ?? "",
+    });
+    setIsEditing(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm.full_name.trim() || !editForm.username.trim()) {
+      toast.error("Nombre y username son obligatorios");
+      return;
+    }
+    await updateProfileMut(editForm);
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -77,6 +115,70 @@ const Profile = () => {
     { icon: HelpCircle, label: "Ayuda y soporte", to: "#" },
   ];
 
+  if (isEditing) {
+    return (
+      <MobileShell>
+        <header className="relative overflow-hidden rounded-b-[32px] bg-gradient-hero px-5 pb-8 pt-[max(env(safe-area-inset-top),20px)] text-primary-foreground">
+          <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
+          <div className="relative flex items-center justify-between">
+            <h1 className="font-display text-xl font-extrabold">Editar Perfil</h1>
+            <button
+              onClick={() => setIsEditing(false)}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 backdrop-blur"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </header>
+
+        <section className="px-5 pt-6 pb-20">
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold ml-1">Nombre completo <span className="text-destructive">*</span></label>
+              <Input
+                value={editForm.full_name}
+                onChange={(e) => setEditForm(prev => ({ ...prev, full_name: e.target.value }))}
+                placeholder="Ej. Juan Pérez"
+                className="h-12 rounded-2xl bg-muted/40 border-transparent focus-visible:ring-primary px-4"
+                disabled={isPending}
+              />
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold ml-1">Username <span className="text-destructive">*</span></label>
+              <Input
+                value={editForm.username}
+                onChange={(e) => setEditForm(prev => ({ ...prev, username: e.target.value }))}
+                placeholder="Ej. juanperez"
+                className="h-12 rounded-2xl bg-muted/40 border-transparent focus-visible:ring-primary px-4"
+                disabled={isPending}
+              />
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold ml-1">Carrera</label>
+              <Input
+                value={editForm.career}
+                onChange={(e) => setEditForm(prev => ({ ...prev, career: e.target.value }))}
+                placeholder="Ej. Ingeniería de Sistemas"
+                className="h-12 rounded-2xl bg-muted/40 border-transparent focus-visible:ring-primary px-4"
+                disabled={isPending}
+              />
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-14 rounded-full mt-6 text-base font-bold shadow-soft"
+              disabled={isPending}
+            >
+              {isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : "Guardar cambios"}
+            </Button>
+          </form>
+        </section>
+      </MobileShell>
+    );
+  }
+
   return (
     <MobileShell>
       {/* ── Header ── */}
@@ -85,7 +187,7 @@ const Profile = () => {
         <div className="relative flex items-center justify-between">
           <h1 className="font-display text-xl font-extrabold">Mi perfil</h1>
           <button
-            onClick={() => toast.info("Próximamente podrás editar tu perfil")}
+            onClick={handleEditClick}
             className="flex h-10 items-center gap-1.5 rounded-full bg-white/15 px-3 backdrop-blur"
           >
             <Pencil className="h-4 w-4" />
