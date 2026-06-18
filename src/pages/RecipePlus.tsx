@@ -70,8 +70,8 @@ const RecipePlus = () => {
           })
         )
         .then(({ KR }) => KR.onSubmit(onPaymentComplete))
-        // Usamos addForm para inyectarlo en nuestro div limpio
-        .then(({ KR }) => KR.addForm("#myPaymentForm"))
+        // Al usar kr-smart-form definido en el DOM, usamos attachForm en lugar de addForm
+        .then(({ KR }) => KR.attachForm("#myPaymentForm"))
         .then(({ KR, result }) => KR.showForm(result.formId))
         .catch((error) => {
           console.error("IziPay SDK load error", error);
@@ -247,7 +247,10 @@ const RecipePlus = () => {
 
             {/* Contenedor donde IziPay inyectará el formulario INLINE */}
             <div className="p-2 min-h-[350px] flex items-center justify-center">
-              <div id="myPaymentForm" className="w-full"></div>
+              <div id="myPaymentForm" className="w-full">
+                {/* kr-smart-form despliega Tarjeta, Yape, Plin y más */}
+                <div className="kr-smart-form"></div>
+              </div>
             </div>
             
             {/* Pie del modal */}
