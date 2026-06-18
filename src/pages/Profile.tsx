@@ -367,7 +367,7 @@ const Profile = () => {
           <div
             role="button"
             id="btn-recipe-plus-profile"
-            onClick={() => navigate("/app/plus")}
+            onClick={() => nav("/app/plus")}
             className="relative cursor-pointer overflow-hidden rounded-3xl bg-gradient-to-r from-yellow-500 to-amber-600 p-4 text-white shadow-soft transition-transform hover:scale-[1.02] active:scale-[0.98]"
           >
             <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/20 blur-xl" />
