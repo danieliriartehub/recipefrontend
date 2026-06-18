@@ -250,7 +250,7 @@ const RecipePlus = () => {
                 {/* Forzar mostrar Yape y Plin si están habilitados en la cuenta */}
                 <div 
                   className="kr-smart-form" 
-                  kr-payment-methods="['CARDS', 'YAPE', 'PLIN']"
+                  kr-payment-methods='["CARDS", "YAPE", "PLIN"]'
                   kr-card-form-has-header="true"
                 ></div>
               </div>
