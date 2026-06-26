@@ -55,7 +55,11 @@ function getCachedProfile(userId: string): Profile | null {
 }
 
 function setCachedProfile(p: Profile) {
-  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ...p, _at: Date.now() })) } catch {}
+  try {
+    // MEDIO-8: No persistimos is_plus en sessionStorage por seguridad
+    const { is_plus, plus_expires_at, ...safeProfile } = p
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ...safeProfile, is_plus: false, plus_expires_at: null, _at: Date.now() }))
+  } catch {}
 }
 
 function clearCachedProfile() {
