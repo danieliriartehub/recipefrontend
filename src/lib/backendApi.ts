@@ -10,7 +10,7 @@
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
 if (!API_URL) {
-  console.warn('[RECIPE] VITE_API_URL no está definida. Las llamadas al backend fallarán.')
+  throw new Error('[RECIPE] VITE_API_URL es obligatoria. Configúrala en .env o en el panel de hosting.')
 }
 
 // ─── Tipos de respuesta del backend ──────────────────────────────────────────
