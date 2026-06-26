@@ -142,24 +142,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!error && data) return data as Profile
 
-      // Perfil no existe (PGRST116 = 0 rows) → crearlo automáticamente
+      // Perfil no existe (PGRST116 = 0 rows)
       if (error?.code === 'PGRST116') {
-        const { data: { user: authUser } } = await supabase.auth.getUser()
-        const fullName = (authUser?.user_metadata?.full_name as string | undefined) ??
-          authUser?.email?.split('@')[0] ?? 'Usuario'
-        const initials = fullName.split(' ').filter(Boolean)
-          .map((s: string) => s[0]).join('').slice(0, 2).toUpperCase() || 'U'
-
-        const { data: newProfile } = await supabase
-          .from('profiles')
-          .insert({
-            id: userId, full_name: fullName, avatar_initials: initials,
-            points: 0, total_kg: 0, co2_saved_kg: 0,
-            streak_days: 0, level_index: 0, weekly_goal_kg: 5,
-          })
-          .select().single()
-
-        if (newProfile) return newProfile as Profile
+        console.warn('[RECIPE] Perfil no encontrado. El backend debe crearlo durante el registro.')
+        return null // Ya no se crea desde el frontend
       }
     } catch {}
     return null
