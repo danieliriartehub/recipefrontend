@@ -292,15 +292,10 @@ export async function getWeeklyLeaders() {
 }
 
 // ─── QR TOKENS ───────────────────────────────────────────────────────────────
-//
-// El backend (aliados) expone validate-qr pero no generate-qr aún.
-// Se mantiene la llamada RPC directa a Supabase como fallback temporal.
 
-export async function generateQrToken(userId: string) {
-  const { data, error } = await supabase
-    .rpc('generate_qr_token', { p_user_id: userId })
-  if (error) throw error
-  return data as {
+export async function generateQrToken(_userId: string) {
+  const token = await getToken()
+  return backendApi.withToken(token).post<{
     token: string
     payload: {
       user_id: string
@@ -312,7 +307,7 @@ export async function generateQrToken(userId: string) {
     }
     expires_at: string
     expires_in: number
-  }
+  }>('/api/v1/profiles/me/qr-token')
 }
 
 // ─── PERFIL ───────────────────────────────────────────────────────────────────
