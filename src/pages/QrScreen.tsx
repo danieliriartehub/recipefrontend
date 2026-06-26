@@ -227,7 +227,7 @@ const QrScreen = () => {
 
             {/* Token truncado */}
             <div className="mt-3 overflow-hidden rounded-2xl bg-muted/60 px-3 py-2 text-center font-mono text-sm tracking-wider">
-              {loading ? "···" : `${token.slice(0, 24)}···`}
+              {loading ? "···" : `${token.slice(0, 8)}···${token.slice(-12)}`}
             </div>
 
             {/* Botones: Guardar + Compartir + Renovar */}
