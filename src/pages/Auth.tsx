@@ -220,7 +220,7 @@ const Auth = () => {
     try {
       await backendApi.post("/api/v1/auth/forgot-password", {
         email: sanitizeEmail(email),
-        redirect_to: window.location.origin + "/auth?mode=reset",
+        redirect_to: "https://mi-recipe.vercel.app/auth/reset-password",
       });
       setForgotSent(true);
       toast.success("📧 Correo enviado", { description: "Revisa tu bandeja de entrada." });
