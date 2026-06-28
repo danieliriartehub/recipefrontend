@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
 import Onboarding from "./pages/Onboarding";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import MapView from "./pages/MapView";
 import CenterDetail from "./pages/CenterDetail";
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/reset-password" element={<ResetPassword />} />
 
             {/* Rutas protegidas — requieren sesión */}
             <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
