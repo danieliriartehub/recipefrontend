@@ -29,11 +29,13 @@ interface AuthContextType {
   user: User | null
   profile: Profile | null
   loading: boolean
+  recoveryToken: string | null        // access_token de un link de recuperación
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   /** needsConfirmation=true cuando Supabase requiere confirmar el correo antes de iniciar sesión */
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null; needsConfirmation: boolean }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
+  clearRecoveryToken: () => void      // llamar tras completar el reset
 }
 
 // ─── Caché de perfil en sessionStorage ───────────────────────────────────────
@@ -80,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]         = useState<User | null>(null)
   const [profile, setProfile]   = useState<Profile | null>(null)
   const [loading, setLoading]   = useState(true)
+  const [recoveryToken, setRecoveryToken] = useState<string | null>(null)
 
   // Guardamos el access_token en un ref para que el intervalo de refresco
   // siempre tenga acceso al valor más reciente sin causar re-renders.
@@ -277,6 +280,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           accessTokenRef.current = sess.access_token
           setSession(sess)
         }
+
+        // Cuando Supabase detecta un link de recuperación en la URL,
+        // guarda el access_token para que ResetPassword.tsx pueda usarlo
+        // sin necesidad de leer el hash manualmente (que ya fue consumido).
+        if (event === 'PASSWORD_RECOVERY' && sess) {
+          setRecoveryToken(sess.access_token)
+          setLoading(false)
+        }
       }
     )
 
@@ -379,8 +390,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const clearRecoveryToken = () => setRecoveryToken(null)
+
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, recoveryToken, signIn, signUp, signOut, refreshProfile, clearRecoveryToken }}>
       {children}
     </AuthContext.Provider>
   )

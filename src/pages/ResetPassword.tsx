@@ -10,6 +10,7 @@ import {
   ShieldCheck, AlertTriangle, Check, X,
 } from "lucide-react";
 import { backendApi } from "@/lib/backendApi";
+import { useAuth } from "@/lib/auth";
 
 // ─── Requisitos de contraseña (igual que en Auth.tsx) ──────────────────────────
 const PASSWORD_MIN = 8;
@@ -46,8 +47,8 @@ const RuleItem = ({ met, label }: { met: boolean; label: string }) => (
 // ─── Componente principal ──────────────────────────────────────────────────────
 const ResetPassword = () => {
   const nav = useNavigate();
+  const { recoveryToken, clearRecoveryToken, loading: authLoading } = useAuth();
 
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [tokenError, setTokenError]   = useState(false);
   const [password, setPassword]       = useState("");
   const [confirm, setConfirm]         = useState("");
@@ -57,42 +58,49 @@ const ResetPassword = () => {
   const [done, setDone]               = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
-  // ── Extraer access_token del hash de la URL ────────────────────────────────
-  // Supabase inserta: #access_token=...&type=recovery&...
+  // ── Detectar si hay token de recuperación disponible ─────────────────────
+  // Supabase procesa el hash #access_token=...&type=recovery automáticamente
+  // y lo expone via el evento PASSWORD_RECOVERY en el AuthProvider.
+  // También intentamos leer el hash directamente como fallback (para casos edge).
   useEffect(() => {
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const token = params.get("access_token");
-    const type  = params.get("type");
+    if (authLoading) return; // esperar a que el AuthProvider termine de inicializar
 
-    if (!token || type !== "recovery") {
-      setTokenError(true);
-      return;
+    // Verificar si hay un token de recuperación en el contexto (via PASSWORD_RECOVERY event)
+    if (recoveryToken) return; // hay token disponible, mostrar el formulario
+
+    // Fallback: intentar leer el hash de la URL directamente
+    // (funciona si el componente carga antes de que Supabase consuma el hash)
+    const hash = window.location.hash.substring(1);
+    if (hash) {
+      const params = new URLSearchParams(hash);
+      const type = params.get("type");
+      if (type === "recovery") return; // Supabase lo procesará pronto
     }
-    setAccessToken(token);
-    // Limpiar el hash de la URL por seguridad (no dejar el token visible)
-    window.history.replaceState(null, "", window.location.pathname);
-  }, []);
+
+    // Si no hay token y el auth ya terminó de cargar, el link es inválido
+    setTokenError(true);
+  }, [recoveryToken, authLoading]);
 
   // ── Validaciones ────────────────────────────────────────────────────────────
   const cleanPassword = (v: string) =>
     v.replace(DANGEROUS_CHARS_RE, "").slice(0, PASSWORD_MAX);
 
-  const allRulesMet   = isPasswordStrong(password);
+  const allRulesMet    = isPasswordStrong(password);
   const passwordsMatch = password === confirm && confirm.length > 0;
-  const canSubmit = allRulesMet && passwordsMatch && !loading && !!accessToken;
+  const canSubmit      = allRulesMet && passwordsMatch && !loading && !!recoveryToken;
 
   // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || !recoveryToken) return;
 
     setLoading(true);
     try {
       await backendApi.post("/api/v1/auth/reset-password", {
-        access_token: accessToken,
+        access_token: recoveryToken,
         new_password: password,
       });
+      clearRecoveryToken();
       setDone(true);
       toast.success("✅ Contraseña actualizada", {
         description: "Ya puedes iniciar sesión con tu nueva contraseña.",
@@ -104,6 +112,18 @@ const ResetPassword = () => {
       setLoading(false);
     }
   };
+
+  // ── Pantalla de carga mientras el AuthProvider inicializa ───────────────────
+  if (authLoading) {
+    return (
+      <MobileShell hideNav>
+        <div className="flex min-h-screen flex-col items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="mt-3 text-sm text-muted-foreground">Verificando link...</p>
+        </div>
+      </MobileShell>
+    );
+  }
 
   // ── Estado: éxito ────────────────────────────────────────────────────────────
   if (done) {
