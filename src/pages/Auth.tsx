@@ -110,6 +110,29 @@ const StrengthBar = ({ password }: { password: string }) => {
   );
 };
 
+// ─── Claves de localStorage para el bloqueo de login ────────────────────────
+const LS_ATTEMPTS_KEY = "recipe_login_attempts";
+const LS_LOCK_UNTIL_KEY = "recipe_login_lock_until";
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_SECONDS = 300;
+
+function readLockState(): { attempts: number; countdown: number } {
+  try {
+    const attempts = parseInt(localStorage.getItem(LS_ATTEMPTS_KEY) ?? "0", 10) || 0;
+    const lockUntil = parseInt(localStorage.getItem(LS_LOCK_UNTIL_KEY) ?? "0", 10) || 0;
+    const remaining = Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
+    // Si el bloqueo ya expiró, limpiar
+    if (lockUntil > 0 && remaining === 0) {
+      localStorage.removeItem(LS_ATTEMPTS_KEY);
+      localStorage.removeItem(LS_LOCK_UNTIL_KEY);
+      return { attempts: 0, countdown: 0 };
+    }
+    return { attempts, countdown: remaining };
+  } catch {
+    return { attempts: 0, countdown: 0 };
+  }
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 const Auth = () => {
   const [mode, setMode]               = useState<"login" | "signup">("login");
@@ -118,8 +141,8 @@ const Auth = () => {
   const [password, setPassword]       = useState("");
   const [loading, setLoading]         = useState(false);
   const [errors, setErrors]           = useState<{ email?: string; password?: string; general?: string }>({});
-  const [loginAttempts, setLoginAttempts] = useState(0);
-  const [countdown, setCountdown]     = useState(0);
+  const [loginAttempts, setLoginAttempts] = useState(() => readLockState().attempts);
+  const [countdown, setCountdown]     = useState(() => readLockState().countdown);
   const [emailSent, setEmailSent]     = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [forgotSent, setForgotSent]   = useState(false);
@@ -137,13 +160,20 @@ const Auth = () => {
     nav("/app", { replace: true });
   }, [session, nav]);
 
-  // Countdown de bloqueo
+  // Countdown de bloqueo — tick cada segundo y sincroniza con localStorage
   useEffect(() => {
     if (countdown <= 0) return;
     const timer = setInterval(() => {
       setCountdown((c) => {
-        if (c <= 1) { setLoginAttempts(0); return 0; }
-        return c - 1;
+        const next = c - 1;
+        if (next <= 0) {
+          // Desbloquear: limpiar localStorage y reiniciar intentos
+          localStorage.removeItem(LS_ATTEMPTS_KEY);
+          localStorage.removeItem(LS_LOCK_UNTIL_KEY);
+          setLoginAttempts(0);
+          return 0;
+        }
+        return next;
       });
     }, 1000);
     return () => clearInterval(timer);
@@ -226,7 +256,14 @@ const Auth = () => {
         if (error) {
           const next = loginAttempts + 1;
           setLoginAttempts(next);
-          if (next >= 5) setCountdown(300);
+          try {
+            localStorage.setItem(LS_ATTEMPTS_KEY, String(next));
+            if (next >= MAX_ATTEMPTS) {
+              const lockUntil = Date.now() + LOCKOUT_SECONDS * 1000;
+              localStorage.setItem(LS_LOCK_UNTIL_KEY, String(lockUntil));
+              setCountdown(LOCKOUT_SECONDS);
+            }
+          } catch { /* localStorage no disponible */ }
           setErrors((e) => ({ ...e, general: traducirError(error) }));
         }
       } else {
