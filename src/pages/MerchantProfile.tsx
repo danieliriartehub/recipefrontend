@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getMarketplaceMerchantById, getMarketplaceProducts } from "@/lib/api";
 import { MobileShell } from "@/components/recipe/MobileShell";
 import { ScreenHeader } from "@/components/recipe/ScreenHeader";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, Coins } from "lucide-react";
 
 const MerchantProfile = () => {
   const { id } = useParams<{ id: string }>();
@@ -149,9 +149,8 @@ const MerchantProfile = () => {
                       Sin stock
                     </div>
                   ) : (
-                    <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-[#b59a3e] z-10 relative">
-                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#fdf5d3]">🪙</span>
-                      {m.points}
+                    <div className="mt-2 flex items-center gap-1 text-xs font-bold text-[#b59a3e] z-10 relative">
+                      {m.points} <Coins className="h-3.5 w-3.5" />
                     </div>
                   )}
                 </div>
