@@ -17,7 +17,6 @@ import {
   MapPin,
   QrCode,
   Sparkles,
-  Navigation,
   ShoppingBag,
   Wallet as WalletIcon,
   Target,

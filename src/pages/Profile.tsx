@@ -7,8 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  ChevronRight, HelpCircle, LogOut, Pencil, Settings,
-  Shield, Ticket, ShoppingBag, Wallet as WalletIcon, Trophy,
+  ChevronRight, LogOut, Pencil, Ticket, ShoppingBag, Wallet as WalletIcon, Trophy,
   Calculator, ArrowDownLeft, ArrowUpRight, Loader2, X, Crown, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
